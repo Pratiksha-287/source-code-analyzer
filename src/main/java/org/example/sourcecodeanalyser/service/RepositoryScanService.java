@@ -1,3 +1,4 @@
+
 package org.example.sourcecodeanalyser.service;
 
 import org.example.sourcecodeanalyser.model.FileDiscoveryResult;
@@ -27,17 +28,17 @@ public class RepositoryScanService {
     public FileDiscoveryResult scanRepository(Path repositoryPath)
             throws IOException {
 
-        // Step 1: Discover all files
+        // Step 1: Discover files
         List<Path> discoveredFiles =
                 repositoryScanner.scanRepository(repositoryPath);
 
-        // Step 2: Classify discovered files
+        // Step 2: Classify files
         Map<String, List<Path>> categorizedFiles =
                 fileDiscoveryService.classifyFiles(discoveredFiles);
 
-        // Step 3: Create structured result
+        // Step 3: Create the result
         return new FileDiscoveryResult(
-                repositoryPath,
+                repositoryPath.toAbsolutePath().normalize(),
                 categorizedFiles
         );
     }
