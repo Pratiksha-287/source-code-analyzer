@@ -1,14 +1,16 @@
+
 package org.example.sourcecodeanalyser.scanner;
 
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.FileVisitResult;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -26,25 +28,31 @@ public class RepositoryScanner {
     public List<Path> scanRepository(Path repositoryPath)
             throws IOException {
 
-        if (repositoryPath == null ||
-                !Files.exists(repositoryPath) ||
-                !Files.isDirectory(repositoryPath)) {
-
+        if (repositoryPath == null) {
             throw new IllegalArgumentException(
-                    "Invalid repository directory: " + repositoryPath
+                    "Repository path cannot be null"
+            );
+        }
+
+        Path rootPath = repositoryPath.toAbsolutePath().normalize();
+
+        if (!Files.isDirectory(rootPath)) {
+            throw new IllegalArgumentException(
+                    "Invalid repository directory: " + rootPath
             );
         }
 
         List<Path> discoveredFiles = new ArrayList<>();
 
-        Files.walkFileTree(repositoryPath, new SimpleFileVisitor<>() {
+        Files.walkFileTree(rootPath, new SimpleFileVisitor<>() {
 
             @Override
             public FileVisitResult preVisitDirectory(
                     Path directory,
                     BasicFileAttributes attributes) {
 
-                if (!directory.equals(repositoryPath)) {
+                if (!directory.equals(rootPath)) {
+
                     String directoryName =
                             directory.getFileName().toString();
 
@@ -68,6 +76,12 @@ public class RepositoryScanner {
                 return FileVisitResult.CONTINUE;
             }
         });
+
+        discoveredFiles.sort(
+                Comparator.comparing(
+                        path -> rootPath.relativize(path).toString()
+                )
+        );
 
         return discoveredFiles;
     }
