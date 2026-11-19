@@ -20,6 +20,10 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.RecordDeclaration;
 
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+
+import org.example.sourcecodeanalyser.model.JavaRelationshipInfo;
+
 @Component
 public class JavaClassAnalyzer {
 
@@ -133,16 +137,43 @@ public class JavaClassAnalyzer {
                 ));
             }
 
+
+// Extract inheritance and implemented interfaces
+            String extendedClass = null;
+            List<String> implementedInterfaces = new ArrayList<>();
+
+            if (type instanceof ClassOrInterfaceDeclaration declaration) {
+
+                extendedClass = declaration.getExtendedTypes()
+                        .stream()
+                        .map(parent -> parent.getNameAsString())
+                        .findFirst()
+                        .orElse(null);
+
+                implementedInterfaces = declaration.getImplementedTypes()
+                        .stream()
+                        .map(interfaceType -> interfaceType.getNameAsString())
+                        .toList();
+            }
+
+            JavaRelationshipInfo relationships =
+                    new JavaRelationshipInfo(
+                            extendedClass,
+                            implementedInterfaces
+                    );
+
+
             // Create class information
             JavaClassInfo classInfo = new JavaClassInfo(
                     packageName,
                     type.getNameAsString(),
-                    type.getClass().getSimpleName(),
+                    determineClassType(type),
                     annotations,
                     javaFile.toString(),
                     methods,
                     fields,
-                    constructors
+                    constructors,
+                    relationships
             );
 
             classInfos.add(classInfo);

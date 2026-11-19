@@ -13,6 +13,7 @@ public class JavaClassInfo {
     private List<JavaMethodInfo> methods;
     private List<JavaFieldInfo> fields;
     private List<JavaConstructorInfo> constructors;
+    private JavaRelationshipInfo relationships;
 
     public JavaClassInfo(
             String packageName,
@@ -22,7 +23,8 @@ public class JavaClassInfo {
             String filePath,
             List<JavaMethodInfo> methods,
             List<JavaFieldInfo> fields,
-            List<JavaConstructorInfo> constructors) {
+            List<JavaConstructorInfo> constructors,
+            JavaRelationshipInfo relationships) {
 
         this.packageName = packageName;
         this.className = className;
@@ -32,6 +34,7 @@ public class JavaClassInfo {
         this.methods = methods;
         this.fields = fields;
         this.constructors = constructors;
+        this.relationships = relationships;
     }
 
     public String getPackageName() {
@@ -64,5 +67,9 @@ public class JavaClassInfo {
 
     public List<JavaConstructorInfo> getConstructors() {
         return constructors;
+    }
+
+    public JavaRelationshipInfo getRelationships() {
+        return relationships;
     }
 }
