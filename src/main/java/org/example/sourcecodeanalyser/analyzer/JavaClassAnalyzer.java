@@ -1,8 +1,11 @@
+
 package org.example.sourcecodeanalyser.analyzer;
 
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import org.example.sourcecodeanalyser.model.JavaClassInfo;
+import org.example.sourcecodeanalyser.model.JavaMethodInfo;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
@@ -23,8 +26,7 @@ public class JavaClassAnalyzer {
                         packageDeclaration.getNameAsString())
                 .orElse("");
 
-        for (TypeDeclaration<?> type :
-                compilationUnit.getTypes()) {
+        for (TypeDeclaration<?> type : compilationUnit.getTypes()) {
 
             String classType = type.getClass().getSimpleName();
 
@@ -34,12 +36,42 @@ public class JavaClassAnalyzer {
                             annotation.getNameAsString())
                     .toList();
 
+            // Extract methods belonging to this type
+            List<JavaMethodInfo> methods = new ArrayList<>();
+
+            for (MethodDeclaration method : type.getMethods()) {
+
+                List<String> parameters = method.getParameters()
+                        .stream()
+                        .map(parameter ->
+                                parameter.getTypeAsString()
+                                        + " " + parameter.getNameAsString())
+                        .toList();
+
+                List<String> methodAnnotations =
+                        method.getAnnotations()
+                                .stream()
+                                .map(annotation ->
+                                        annotation.getNameAsString())
+                                .toList();
+
+                JavaMethodInfo methodInfo = new JavaMethodInfo(
+                        method.getNameAsString(),
+                        method.getTypeAsString(),
+                        parameters,
+                        methodAnnotations
+                );
+
+                methods.add(methodInfo);
+            }
+
             JavaClassInfo classInfo = new JavaClassInfo(
                     packageName,
                     type.getNameAsString(),
                     classType,
                     annotations,
-                    javaFile.toString()
+                    javaFile.toString(),
+                    methods
             );
 
             classInfos.add(classInfo);
