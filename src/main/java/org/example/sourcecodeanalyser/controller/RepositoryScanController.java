@@ -1,13 +1,13 @@
 
 package org.example.sourcecodeanalyser.controller;
 
+import jakarta.validation.Valid;
 import org.example.sourcecodeanalyser.dto.RepositoryScanRequest;
 import org.example.sourcecodeanalyser.model.FileDiscoveryResult;
 import org.example.sourcecodeanalyser.service.RepositoryScanService;
-
 import org.springframework.web.bind.annotation.*;
 
-        import java.io.IOException;
+import java.io.IOException;
 import java.nio.file.Path;
 
 @RestController
@@ -18,16 +18,16 @@ public class RepositoryScanController {
 
     public RepositoryScanController(
             RepositoryScanService repositoryScanService) {
-
         this.repositoryScanService = repositoryScanService;
     }
 
     @PostMapping("/scan")
     public FileDiscoveryResult scanRepository(
-            @RequestBody RepositoryScanRequest request)
+            @Valid @RequestBody RepositoryScanRequest request)
             throws IOException {
 
-        Path repositoryPath = Path.of(request.getRepositoryPath());
+        Path repositoryPath =
+                Path.of(request.getRepositoryPath());
 
         return repositoryScanService.scanRepository(repositoryPath);
     }

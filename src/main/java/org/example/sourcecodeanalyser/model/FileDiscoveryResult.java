@@ -1,6 +1,9 @@
+
 package org.example.sourcecodeanalyser.model;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -17,7 +20,18 @@ public class FileDiscoveryResult {
             Map<String, List<Path>> categorizedFiles) {
 
         this.repositoryPath = repositoryPath;
-        this.categorizedFiles = categorizedFiles;
+
+        Map<String, List<Path>> immutableFiles = new LinkedHashMap<>();
+
+        categorizedFiles.forEach((fileType, paths) ->
+                immutableFiles.put(
+                        fileType,
+                        List.copyOf(paths)
+                )
+        );
+
+        this.categorizedFiles =
+                Collections.unmodifiableMap(immutableFiles);
 
         this.totalFiles = categorizedFiles.values()
                 .stream()
