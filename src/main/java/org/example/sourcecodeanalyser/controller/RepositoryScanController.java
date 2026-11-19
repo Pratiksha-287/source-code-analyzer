@@ -1,10 +1,9 @@
 
 package org.example.sourcecodeanalyser.controller;
 
-import jakarta.validation.Valid;
 import org.example.sourcecodeanalyser.dto.RepositoryScanRequest;
-import org.example.sourcecodeanalyser.model.FileDiscoveryResult;
-import org.example.sourcecodeanalyser.service.RepositoryScanService;
+import org.example.sourcecodeanalyser.model.RepositoryAnalysisResult;
+import org.example.sourcecodeanalyser.service.RepositoryAnalysisService;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -14,21 +13,23 @@ import java.nio.file.Path;
 @RequestMapping("/api/analyzer")
 public class RepositoryScanController {
 
-    private final RepositoryScanService repositoryScanService;
+    private final RepositoryAnalysisService repositoryAnalysisService;
 
     public RepositoryScanController(
-            RepositoryScanService repositoryScanService) {
-        this.repositoryScanService = repositoryScanService;
+            RepositoryAnalysisService repositoryAnalysisService) {
+
+        this.repositoryAnalysisService = repositoryAnalysisService;
     }
 
     @PostMapping("/scan")
-    public FileDiscoveryResult scanRepository(
-            @Valid @RequestBody RepositoryScanRequest request)
+    public RepositoryAnalysisResult analyzeRepository(
+            @RequestBody RepositoryScanRequest request)
             throws IOException {
 
-        Path repositoryPath =
-                Path.of(request.getRepositoryPath());
+        Path repositoryPath = Path.of(request.getRepositoryPath());
 
-        return repositoryScanService.scanRepository(repositoryPath);
+        return repositoryAnalysisService.analyzeRepository(
+                repositoryPath
+        );
     }
 }
