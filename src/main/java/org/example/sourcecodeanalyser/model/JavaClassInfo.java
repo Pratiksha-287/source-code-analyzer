@@ -14,6 +14,8 @@ public class JavaClassInfo {
     private List<JavaFieldInfo> fields;
     private List<JavaConstructorInfo> constructors;
     private JavaRelationshipInfo relationships;
+    private String accessModifier;
+    private List<String> modifiers;
 
     public JavaClassInfo(
             String packageName,
@@ -24,7 +26,9 @@ public class JavaClassInfo {
             List<JavaMethodInfo> methods,
             List<JavaFieldInfo> fields,
             List<JavaConstructorInfo> constructors,
-            JavaRelationshipInfo relationships) {
+            JavaRelationshipInfo relationships,
+            String accessModifier,
+            List<String> modifiers) {
 
         this.packageName = packageName;
         this.className = className;
@@ -35,6 +39,8 @@ public class JavaClassInfo {
         this.fields = fields;
         this.constructors = constructors;
         this.relationships = relationships;
+        this.accessModifier = accessModifier;
+        this.modifiers = modifiers;
     }
 
     public String getPackageName() {
@@ -71,5 +77,13 @@ public class JavaClassInfo {
 
     public JavaRelationshipInfo getRelationships() {
         return relationships;
+    }
+
+    public String getAccessModifier() {
+        return accessModifier;
+    }
+
+    public List<String> getModifiers() {
+        return modifiers;
     }
 }

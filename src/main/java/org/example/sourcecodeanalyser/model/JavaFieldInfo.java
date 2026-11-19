@@ -9,17 +9,20 @@ public class JavaFieldInfo {
     private String fieldType;
     private String accessModifier;
     private List<String> annotations;
+    private List<String> modifiers;
 
     public JavaFieldInfo(
             String fieldName,
             String fieldType,
             String accessModifier,
-            List<String> annotations) {
+            List<String> annotations,
+            List<String> modifiers) {
 
         this.fieldName = fieldName;
         this.fieldType = fieldType;
         this.accessModifier = accessModifier;
         this.annotations = annotations;
+        this.modifiers = modifiers;
     }
 
     public String getFieldName() {
@@ -36,5 +39,9 @@ public class JavaFieldInfo {
 
     public List<String> getAnnotations() {
         return annotations;
+    }
+
+    public List<String> getModifiers() {
+        return modifiers;
     }
 }

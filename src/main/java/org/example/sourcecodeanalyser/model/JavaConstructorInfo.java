@@ -9,17 +9,20 @@ public class JavaConstructorInfo {
     private List<String> parameters;
     private List<String> annotations;
     private String accessModifier;
+    private List<String> modifiers;
 
     public JavaConstructorInfo(
             String constructorName,
             List<String> parameters,
             List<String> annotations,
-            String accessModifier) {
+            String accessModifier,
+            List<String> modifiers) {
 
         this.constructorName = constructorName;
         this.parameters = parameters;
         this.annotations = annotations;
         this.accessModifier = accessModifier;
+        this.modifiers = modifiers;
     }
 
     public String getConstructorName() {
@@ -36,5 +39,9 @@ public class JavaConstructorInfo {
 
     public String getAccessModifier() {
         return accessModifier;
+    }
+
+    public List<String> getModifiers() {
+        return modifiers;
     }
 }

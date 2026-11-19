@@ -67,12 +67,23 @@ public class JavaClassAnalyzer {
                                         annotation.getNameAsString())
                                 .toList();
 
+                String methodAccessModifier =
+                        method.getAccessSpecifier().asString();
+
+                List<String> methodModifiers = method.getModifiers()
+                        .stream()
+                        .map(modifier -> modifier.getKeyword().asString())
+                        .toList();
+
                 methods.add(new JavaMethodInfo(
                         method.getNameAsString(),
                         method.getTypeAsString(),
                         parameters,
-                        methodAnnotations
+                        methodAnnotations,
+                        methodAccessModifier,
+                        methodModifiers
                 ));
+
             }
 
             // Extract fields
@@ -90,13 +101,19 @@ public class JavaClassAnalyzer {
                                         annotation.getNameAsString())
                                 .toList();
 
+                List<String> fieldModifiers = field.getModifiers()
+                        .stream()
+                        .map(modifier -> modifier.getKeyword().asString())
+                        .toList();
+
                 field.getVariables().forEach(variable -> {
 
                     fields.add(new JavaFieldInfo(
                             variable.getNameAsString(),
                             variable.getTypeAsString(),
                             accessModifier,
-                            fieldAnnotations
+                            fieldAnnotations,
+                            fieldModifiers
                     ));
                 });
             }
@@ -129,11 +146,18 @@ public class JavaClassAnalyzer {
                 String accessModifier =
                         constructor.getAccessSpecifier().asString();
 
+                List<String> constructorModifiers =
+                        constructor.getModifiers()
+                                .stream()
+                                .map(modifier -> modifier.getKeyword().asString())
+                                .toList();
+
                 constructors.add(new JavaConstructorInfo(
                         constructor.getNameAsString(),
                         constructorParameters,
                         constructorAnnotations,
-                        accessModifier
+                        accessModifier,
+                        constructorModifiers
                 ));
             }
 
@@ -162,6 +186,15 @@ public class JavaClassAnalyzer {
                             implementedInterfaces
                     );
 
+            // Extract class access modifier
+            String classAccessModifier =
+                    type.getAccessSpecifier().asString();
+
+            // Extract class modifiers
+            List<String> classModifiers = type.getModifiers()
+                    .stream()
+                    .map(modifier -> modifier.getKeyword().asString())
+                    .toList();
 
             // Create class information
             JavaClassInfo classInfo = new JavaClassInfo(
@@ -173,7 +206,9 @@ public class JavaClassAnalyzer {
                     methods,
                     fields,
                     constructors,
-                    relationships
+                    relationships,
+                    classAccessModifier,
+                    classModifiers
             );
 
             classInfos.add(classInfo);
