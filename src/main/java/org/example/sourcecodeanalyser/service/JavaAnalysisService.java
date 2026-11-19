@@ -4,6 +4,7 @@ package org.example.sourcecodeanalyser.service;
 import com.github.javaparser.ast.CompilationUnit;
 import org.example.sourcecodeanalyser.analyzer.JavaClassAnalyzer;
 import org.example.sourcecodeanalyser.extractor.JavaSourceExtractor;
+import org.example.sourcecodeanalyser.model.JavaAnalysisResult;
 import org.example.sourcecodeanalyser.model.JavaClassInfo;
 import org.springframework.stereotype.Service;
 
@@ -26,7 +27,7 @@ public class JavaAnalysisService {
         this.javaClassAnalyzer = javaClassAnalyzer;
     }
 
-    public List<JavaClassInfo> analyzeJavaFiles(
+    public JavaAnalysisResult analyzeJavaFiles(
             List<Path> javaFiles) throws IOException {
 
         List<JavaClassInfo> allClassInfos = new ArrayList<>();
@@ -48,6 +49,10 @@ public class JavaAnalysisService {
             allClassInfos.addAll(classInfos);
         }
 
-        return allClassInfos;
+        // Step 4: Create structured analysis result
+        return new JavaAnalysisResult(
+                javaFiles.size(),
+                allClassInfos
+        );
     }
 }
