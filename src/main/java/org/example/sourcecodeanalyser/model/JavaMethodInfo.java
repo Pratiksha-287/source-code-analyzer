@@ -11,6 +11,8 @@ public class JavaMethodInfo {
     private List<String> annotations;
     private String accessModifier;
     private List<String> modifiers;
+    private int startLine;
+    private int endLine;
 
     public JavaMethodInfo(
             String methodName,
@@ -18,7 +20,9 @@ public class JavaMethodInfo {
             List<String> parameters,
             List<String> annotations,
             String accessModifier,
-            List<String> modifiers) {
+            List<String> modifiers,
+            int startLine,
+            int endLine) {
 
         this.methodName = methodName;
         this.returnType = returnType;
@@ -26,6 +30,8 @@ public class JavaMethodInfo {
         this.annotations = annotations;
         this.accessModifier = accessModifier;
         this.modifiers = modifiers;
+        this.startLine = startLine;
+        this.endLine = endLine;
     }
 
     public String getMethodName() {
@@ -50,5 +56,13 @@ public class JavaMethodInfo {
 
     public List<String> getModifiers() {
         return modifiers;
+    }
+
+    public int getStartLine() {
+        return startLine;
+    }
+
+    public int getEndLine() {
+        return endLine;
     }
 }

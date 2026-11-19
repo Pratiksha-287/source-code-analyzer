@@ -10,7 +10,10 @@ import org.example.sourcecodeanalyser.model.JavaClassInfo;
 import org.example.sourcecodeanalyser.model.JavaConstructorInfo;
 import org.example.sourcecodeanalyser.model.JavaFieldInfo;
 import org.example.sourcecodeanalyser.model.JavaMethodInfo;
+import org.example.sourcecodeanalyser.model.JavaImportInfo;
 import org.springframework.stereotype.Component;
+import com.github.javaparser.ast.ImportDeclaration;
+
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,6 +40,20 @@ public class JavaClassAnalyzer {
                 .map(packageDeclaration ->
                         packageDeclaration.getNameAsString())
                 .orElse("");
+
+
+        // Extract import statements
+        List<JavaImportInfo> imports = new ArrayList<>();
+
+        for (ImportDeclaration importDeclaration :
+                compilationUnit.getImports()) {
+
+            imports.add(new JavaImportInfo(
+                    importDeclaration.getNameAsString(),
+                    importDeclaration.isStatic(),
+                    importDeclaration.isAsterisk()
+            ));
+        }
 
         for (TypeDeclaration<?> type : compilationUnit.getTypes()) {
 
@@ -75,13 +92,24 @@ public class JavaClassAnalyzer {
                         .map(modifier -> modifier.getKeyword().asString())
                         .toList();
 
+                // Extract method source line numbers
+                int methodStartLine = method.getRange()
+                        .map(range -> range.begin.line)
+                        .orElse(0);
+
+                int methodEndLine = method.getRange()
+                        .map(range -> range.end.line)
+                        .orElse(0);
+
                 methods.add(new JavaMethodInfo(
                         method.getNameAsString(),
                         method.getTypeAsString(),
                         parameters,
                         methodAnnotations,
                         methodAccessModifier,
-                        methodModifiers
+                        methodModifiers,
+                        methodStartLine,
+                        methodEndLine
                 ));
 
             }
@@ -196,6 +224,15 @@ public class JavaClassAnalyzer {
                     .map(modifier -> modifier.getKeyword().asString())
                     .toList();
 
+            // Extract source line numbers
+            int startLine = type.getRange()
+                    .map(range -> range.begin.line)
+                    .orElse(0);
+
+            int endLine = type.getRange()
+                    .map(range -> range.end.line)
+                    .orElse(0);
+
             // Create class information
             JavaClassInfo classInfo = new JavaClassInfo(
                     packageName,
@@ -208,7 +245,10 @@ public class JavaClassAnalyzer {
                     constructors,
                     relationships,
                     classAccessModifier,
-                    classModifiers
+                    classModifiers,
+                    imports,
+                    startLine,
+                    endLine
             );
 
             classInfos.add(classInfo);

@@ -16,6 +16,9 @@ public class JavaClassInfo {
     private JavaRelationshipInfo relationships;
     private String accessModifier;
     private List<String> modifiers;
+    private List<JavaImportInfo> imports;
+    private int startLine;
+    private int endLine;
 
     public JavaClassInfo(
             String packageName,
@@ -28,7 +31,10 @@ public class JavaClassInfo {
             List<JavaConstructorInfo> constructors,
             JavaRelationshipInfo relationships,
             String accessModifier,
-            List<String> modifiers) {
+            List<String> modifiers,
+            List<JavaImportInfo> imports,
+            int startLine,
+            int endLine) {
 
         this.packageName = packageName;
         this.className = className;
@@ -41,6 +47,10 @@ public class JavaClassInfo {
         this.relationships = relationships;
         this.accessModifier = accessModifier;
         this.modifiers = modifiers;
+        this.imports = imports;
+        this.startLine = startLine;
+        this.endLine = endLine;
+
     }
 
     public String getPackageName() {
@@ -85,5 +95,17 @@ public class JavaClassInfo {
 
     public List<String> getModifiers() {
         return modifiers;
+    }
+
+    public List<JavaImportInfo> getImports() {
+        return imports;
+    }
+
+    public int getStartLine() {
+        return startLine;
+    }
+
+    public int getEndLine() {
+        return endLine;
     }
 }
