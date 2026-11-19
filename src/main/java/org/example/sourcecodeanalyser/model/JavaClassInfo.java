@@ -10,19 +10,22 @@ public class JavaClassInfo {
     private String classType;
     private List<String> annotations;
     private String filePath;
+    private List<JavaMethodInfo> methods;
 
     public JavaClassInfo(
             String packageName,
             String className,
             String classType,
             List<String> annotations,
-            String filePath) {
+            String filePath,
+            List<JavaMethodInfo> methods) {
 
         this.packageName = packageName;
         this.className = className;
         this.classType = classType;
         this.annotations = annotations;
         this.filePath = filePath;
+        this.methods = methods;
     }
 
     public String getPackageName() {
@@ -43,5 +46,9 @@ public class JavaClassInfo {
 
     public String getFilePath() {
         return filePath;
+    }
+
+    public List<JavaMethodInfo> getMethods() {
+        return methods;
     }
 }
