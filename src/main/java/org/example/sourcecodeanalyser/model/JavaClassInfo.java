@@ -17,6 +17,8 @@ public class JavaClassInfo {
     private String accessModifier;
     private List<String> modifiers;
     private List<JavaImportInfo> imports;
+    private List<JavaDependencyInfo> dependencies;
+    private List<JavaAnnotationInfo> annotationDetails;
     private int startLine;
     private int endLine;
 
@@ -33,6 +35,8 @@ public class JavaClassInfo {
             String accessModifier,
             List<String> modifiers,
             List<JavaImportInfo> imports,
+            List<JavaDependencyInfo> dependencies,
+            List<JavaAnnotationInfo> annotationDetails,
             int startLine,
             int endLine) {
 
@@ -48,8 +52,10 @@ public class JavaClassInfo {
         this.accessModifier = accessModifier;
         this.modifiers = modifiers;
         this.imports = imports;
+        this.dependencies=dependencies;
         this.startLine = startLine;
         this.endLine = endLine;
+        this.annotationDetails=annotationDetails;
 
     }
 
@@ -101,6 +107,10 @@ public class JavaClassInfo {
         return imports;
     }
 
+    public List<JavaDependencyInfo> getDependencies() {
+        return dependencies;
+    }
+
     public int getStartLine() {
         return startLine;
     }
@@ -108,4 +118,6 @@ public class JavaClassInfo {
     public int getEndLine() {
         return endLine;
     }
+
+    public List<JavaAnnotationInfo> getAnnotationDetails(){ return annotationDetails;}
 }
