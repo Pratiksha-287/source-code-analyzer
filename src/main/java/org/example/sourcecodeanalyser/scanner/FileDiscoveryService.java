@@ -143,6 +143,17 @@ public class FileDiscoveryService {
         specialFiles.put(".dockerignore", "DOCKER");
         specialFiles.put(".editorconfig", "CONFIG");
 
+        // Gradle configuration files
+        specialFiles.put("settings.gradle", "GRADLE_SETTINGS");
+        specialFiles.put("build.gradle", "GRADLE_BUILD");
+
+        specialFiles.put("settings.gradle.kts", "GRADLE_SETTINGS_KOTLIN");
+        specialFiles.put("build.gradle.kts", "GRADLE_BUILD_KOTLIN");
+
+        specialFiles.put("gradle.properties", "GRADLE_PROPERTIES");
+        specialFiles.put("gradle-wrapper.properties", "GRADLE_WRAPPER_PROPERTIES");
+        //
+
         return Collections.unmodifiableMap(specialFiles);
     }
 
