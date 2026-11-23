@@ -66,6 +66,12 @@
 		</dependency>
 
 		<dependency>
+			<groupId>com.helger</groupId>
+			<artifactId>ph-css</artifactId>
+			<version>8.4.0</version>
+		</dependency>
+
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
 			<scope>test</scope>
