@@ -3,6 +3,8 @@ package org.example.sourcecodeanalyser.service;
 
 import org.example.sourcecodeanalyser.analyzer.GradleAnalyzer;
 import org.example.sourcecodeanalyser.analyzer.clientextension.ClientExtensionAnalyzer;
+import org.example.sourcecodeanalyser.analyzer.configuration.ConfigurationAnalyzer;
+import org.example.sourcecodeanalyser.analyzer.python.PythonFileAnalyzer;
 import org.example.sourcecodeanalyser.discovery.ClientExtensionDiscovery;
 import org.example.sourcecodeanalyser.discovery.ModuleDiscovery;
 import org.example.sourcecodeanalyser.discovery.RepositoryDiscovery;
@@ -12,9 +14,11 @@ import org.example.sourcecodeanalyser.model.RepositoryAnalysisResult;
 import org.example.sourcecodeanalyser.model.clientextension.ClientExtensionAnalysis;
 import org.example.sourcecodeanalyser.model.clientextension.ClientExtensionInfo;
 import org.example.sourcecodeanalyser.model.common.RepositoryInfo;
+import org.example.sourcecodeanalyser.model.configuration.ConfigurationFileAnalysis;
 import org.example.sourcecodeanalyser.model.module.GradleAnalysisResult;
 import org.example.sourcecodeanalyser.model.module.GradleInfo;
 import org.example.sourcecodeanalyser.model.module.ModuleInfo;
+import org.example.sourcecodeanalyser.model.python.PythonFileAnalysis;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -22,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class RepositoryAnalysisService {
@@ -33,6 +38,8 @@ public class RepositoryAnalysisService {
     private final ClientExtensionAnalyzer clientExtensionAnalyzer;
     private final ModuleDiscovery moduleDiscovery;
     private final GradleAnalyzer gradleAnalyzer;
+    private final PythonFileAnalyzer pythonFileAnalyzer;
+    private final ConfigurationAnalyzer configurationAnalyzer;
 
     public RepositoryAnalysisService(
             RepositoryScanService repositoryScanService,
@@ -41,7 +48,9 @@ public class RepositoryAnalysisService {
             ClientExtensionDiscovery clientExtensionDiscovery,
             ClientExtensionAnalyzer clientExtensionAnalyzer,
             ModuleDiscovery moduleDiscovery,
-            GradleAnalyzer gradleAnalyzer) {
+            GradleAnalyzer gradleAnalyzer,
+            PythonFileAnalyzer pythonFileAnalyzer,
+            ConfigurationAnalyzer configurationAnalyzer) {
 
         this.repositoryScanService = repositoryScanService;
         this.javaAnalysisService = javaAnalysisService;
@@ -50,6 +59,8 @@ public class RepositoryAnalysisService {
         this.clientExtensionAnalyzer = clientExtensionAnalyzer;
         this.moduleDiscovery = moduleDiscovery;
         this.gradleAnalyzer = gradleAnalyzer;
+        this.pythonFileAnalyzer = pythonFileAnalyzer;
+        this.configurationAnalyzer = configurationAnalyzer;
     }
 
     public RepositoryAnalysisResult analyzeRepository(
@@ -103,13 +114,93 @@ public class RepositoryAnalysisService {
                         moduleGradleFiles
                 );
 
-        // Step 9: Return complete repository analysis
+        // Step 9: Analyze Python files
+        List<Path> pythonFiles = fileDiscovery.getCategorizedFiles()
+                .getOrDefault("PYTHON", List.of());
+
+        List<PythonFileAnalysis> pythonAnalysis =
+                new ArrayList<>();
+
+        for (Path pythonFile : pythonFiles) {
+            pythonAnalysis.add(
+                    pythonFileAnalyzer.analyze(pythonFile)
+            );
+        }
+
+        // Step 10: Analyze configuration files
+        List<ConfigurationFileAnalysis> configurationAnalysis =
+                analyzeConfigurationFiles(
+                        repositoryPath,
+                        fileDiscovery
+                );
+
+        // Step 11: Return complete repository analysis
         return new RepositoryAnalysisResult(
                 fileDiscovery,
                 javaAnalysis,
                 clientExtensionResults,
-                gradleAnalysis
+                gradleAnalysis,
+                pythonAnalysis,
+                configurationAnalysis
         );
+    }
+
+
+    private List<ConfigurationFileAnalysis> analyzeConfigurationFiles(
+            Path repositoryPath,
+            FileDiscoveryResult fileDiscovery) {
+
+        Map<String, List<Path>> categorizedFiles =
+                fileDiscovery.getCategorizedFiles();
+
+        List<Path> configurationFiles = new ArrayList<>();
+
+        configurationFiles.addAll(
+                categorizedFiles.getOrDefault("YAML", List.of())
+        );
+
+        configurationFiles.addAll(
+                categorizedFiles.getOrDefault("PROPERTIES", List.of())
+        );
+
+        configurationFiles.addAll(
+                categorizedFiles.getOrDefault("ENV", List.of())
+        );
+
+        categorizedFiles.getOrDefault("DOCKER", List.of())
+                .stream()
+                .filter(this::isDockerfile)
+                .forEach(configurationFiles::add);
+
+        // Liferay OSGi configuration files may currently be categorized as OTHER.
+        categorizedFiles.values()
+                .stream()
+                .flatMap(List::stream)
+                .filter(Files::isRegularFile)
+                .filter(file -> file.getFileName()
+                        .toString()
+                        .toLowerCase()
+                        .endsWith(".config"))
+                .forEach(configurationFiles::add);
+
+        return configurationFiles.stream()
+                .distinct()
+                .map(file -> configurationAnalyzer.analyze(
+                        file,
+                        repositoryPath
+                ))
+                .toList();
+    }
+
+
+    private boolean isDockerfile(Path file) {
+
+        String name = file.getFileName()
+                .toString()
+                .toLowerCase();
+
+        return name.equals("dockerfile")
+                || name.startsWith("dockerfile.");
     }
 
     private List<GradleInfo> analyzeWorkspaceGradleFiles(
@@ -148,7 +239,6 @@ public class RepositoryAnalysisService {
                             continue;
                         }
 
-                        // Skip properties files and wrapper properties.
                         String fileName = file.getFileName().toString();
 
                         if (!fileName.endsWith(".gradle")) {
@@ -188,20 +278,17 @@ public class RepositoryAnalysisService {
     private Path resolveClientExtensionsDirectory(
             Path repositoryPath) {
 
-        // Case 1: Supplied path itself is a Client Extension
         if (Files.isRegularFile(
                 repositoryPath.resolve("client-extension.yaml"))) {
             return repositoryPath;
         }
 
-        // Case 2: Supplied path is client-extensions directory
         if (repositoryPath.getFileName() != null
                 && repositoryPath.getFileName().toString()
                 .equals("client-extensions")) {
             return repositoryPath;
         }
 
-        // Case 3: Workspace root
         Path clientExtensionsPath =
                 repositoryPath.resolve("client-extensions");
 
@@ -209,7 +296,6 @@ public class RepositoryAnalysisService {
             return clientExtensionsPath;
         }
 
-        // Case 4: Other directory
         return repositoryPath;
     }
 }

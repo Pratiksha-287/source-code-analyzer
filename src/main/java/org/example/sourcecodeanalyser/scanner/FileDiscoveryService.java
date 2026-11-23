@@ -141,6 +141,12 @@ public class FileDiscoveryService {
         specialFiles.put(".gitmodules", "GIT");
 
         specialFiles.put(".dockerignore", "DOCKER");
+        // Environment configuration files
+        specialFiles.put(".env", "ENV");
+        specialFiles.put(".env.example", "ENV");
+        specialFiles.put(".env.local", "ENV");
+        specialFiles.put(".env.development", "ENV");
+        specialFiles.put(".env.production", "ENV");
         specialFiles.put(".editorconfig", "CONFIG");
 
         // Gradle configuration files
@@ -193,19 +199,29 @@ public class FileDiscoveryService {
             String detectedType = SPECIAL_FILES.get(fileName);
 
             // If not a special file, check extensions
+
+// If not a special file, check common configuration variants.
             if (detectedType == null) {
 
-                detectedType = FILE_TYPES.entrySet()
-                        .stream()
-                        .filter(entry ->
-                                fileName.endsWith(entry.getKey()))
-                        .max((first, second) ->
-                                Integer.compare(
-                                        first.getKey().length(),
-                                        second.getKey().length()
-                                ))
-                        .map(Map.Entry::getValue)
-                        .orElse("OTHER");
+                if (fileName.startsWith(".env.")) {
+                    detectedType = "ENV";
+
+                } else if (fileName.startsWith("dockerfile.")) {
+                    detectedType = "DOCKER";
+
+                } else {
+                    detectedType = FILE_TYPES.entrySet()
+                            .stream()
+                            .filter(entry ->
+                                    fileName.endsWith(entry.getKey()))
+                            .max((first, second) ->
+                                    Integer.compare(
+                                            first.getKey().length(),
+                                            second.getKey().length()
+                                    ))
+                            .map(Map.Entry::getValue)
+                            .orElse("OTHER");
+                }
             }
 
             // Add file to its respective category
