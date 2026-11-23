@@ -1,9 +1,12 @@
 
 package org.example.sourcecodeanalyser.analyzer;
 
+import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.ImportDeclaration;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.stmt.CatchClause;
 
 import org.example.sourcecodeanalyser.model.JavaDependencyInfo;
 import org.springframework.stereotype.Component;
@@ -16,12 +19,22 @@ public class DependencyExtractor {
 
     private static final Map<String, String> INJECTION_ANNOTATIONS =
             Map.of(
-                    "Autowired", "FIELD_INJECTION",
-                    "Inject", "FIELD_INJECTION",
+                    "Autowired", "SPRING_AUTOWIRED",
+                    "Inject", "INJECT",
                     "Resource", "RESOURCE_INJECTION",
                     "EJB", "EJB_INJECTION",
                     "Reference", "OSGI_REFERENCE"
             );
+
+    private static final Set<String> JAVA_LANG_TYPES = Set.of(
+            "String", "Object", "Integer", "Long", "Double",
+            "Float", "Boolean", "Character", "Byte", "Short",
+            "Void", "Number", "Class", "Enum", "Record",
+            "Throwable", "Exception", "RuntimeException",
+            "Error", "StringBuilder", "StringBuffer",
+            "Override", "Deprecated", "SuppressWarnings",
+            "FunctionalInterface", "SafeVarargs"
+    );
 
     public List<JavaDependencyInfo> extract(
             TypeDeclaration<?> type,
@@ -33,44 +46,41 @@ public class DependencyExtractor {
         Map<String, JavaDependencyInfo> dependencies =
                 new LinkedHashMap<>();
 
-        Map<String, String> variableTypes = new HashMap<>();
+        // Index class-level field types.
+        Map<String, String> fieldTypes = new HashMap<>();
 
+        for (FieldDeclaration field : type.getFields()) {
 
-        // Detect dependencies from explicit imports.
-        for (ImportDeclaration declaration : imports) {
+            String injectionType =
+                    determineInjectionType(field.getAnnotations(), "FIELD");
 
-            String importedName = declaration.getNameAsString();
+            String annotationName =
+                    findInjectionAnnotation(field.getAnnotations());
 
-            if (declaration.isAsterisk()) {
-                continue;
-            }
+            for (VariableDeclarator variable : field.getVariables()) {
 
-            // For static imports, identify the owning class.
-            if (declaration.isStatic()) {
+                String fieldName = variable.getNameAsString();
+                String fieldType = variable.getTypeAsString();
 
-                int lastDot = importedName.lastIndexOf('.');
+                fieldTypes.put(fieldName, fieldType);
 
-                if (lastDot == -1) {
-                    continue;
-                }
-
-                importedName = importedName.substring(0, lastDot);
-            }
-
-            if (projectTypes.contains(importedName)) {
-
-                addDependency(
+                addTypeDependencies(
                         dependencies,
-                        importedName,
-                        declaration.isStatic()
-                                ? "STATIC_IMPORT"
-                                : "IMPORT",
-                        "Import: " + declaration.getNameAsString(),
-                        null,
-                        null,
-                        declaration.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
+                        fieldType,
+                        "FIELD",
+                        "Field: " + fieldName,
+                        injectionType,
+                        annotationName,
+                        variable,
+                        imports,
+                        packageName,
+                        projectTypes,
+                        sourceFile
+                );
+
+                detectObjectCreation(
+                        variable,
+                        dependencies,
                         imports,
                         packageName,
                         projectTypes,
@@ -78,124 +88,86 @@ public class DependencyExtractor {
                 );
             }
         }
+
+        // Detect imports, including external and static imports.
+        detectImports(
+                dependencies,
+                imports,
+                packageName,
+                projectTypes,
+                sourceFile
+        );
 
         // Detect inheritance and implemented interfaces.
         if (type instanceof ClassOrInterfaceDeclaration declaration) {
 
-            declaration.getExtendedTypes().forEach(parent -> {
+            declaration.getExtendedTypes().forEach(parent ->
+                    addTypeDependencies(
+                            dependencies,
+                            parent.asString(),
+                            "EXTENDS",
+                            "Class: " + type.getNameAsString(),
+                            null,
+                            null,
+                            parent,
+                            imports,
+                            packageName,
+                            projectTypes,
+                            sourceFile
+                    )
+            );
 
-                addDependency(
-                        dependencies,
-                        parent.getNameAsString(),
-                        "EXTENDS",
-                        "Class: " + type.getNameAsString(),
-                        null,
-                        null,
-                        parent.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
-                        imports,
-                        packageName,
-                        projectTypes,
-                        sourceFile
-                );
-            });
-
-            declaration.getImplementedTypes().forEach(interfaceType -> {
-
-                addDependency(
-                        dependencies,
-                        interfaceType.getNameAsString(),
-                        "IMPLEMENTS",
-                        "Class: " + type.getNameAsString(),
-                        null,
-                        null,
-                        interfaceType.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
-                        imports,
-                        packageName,
-                        projectTypes,
-                        sourceFile
-                );
-            });
+            declaration.getImplementedTypes().forEach(interfaceType ->
+                    addTypeDependencies(
+                            dependencies,
+                            interfaceType.asString(),
+                            "IMPLEMENTS",
+                            "Class: " + type.getNameAsString(),
+                            null,
+                            null,
+                            interfaceType,
+                            imports,
+                            packageName,
+                            projectTypes,
+                            sourceFile
+                    )
+            );
         }
 
+        // Detect constructor dependencies and constructor injection.
+        for (BodyDeclaration<?> member : type.getMembers()) {
 
-        // Index class fields and detect field injection.
-        for (FieldDeclaration field : type.getFields()) {
-
-            String injectionType = determineInjectionType(
-                    field.getAnnotations()
-            );
-
-            String annotationName = findInjectionAnnotation(
-                    field.getAnnotations()
-            );
-
-            for (VariableDeclarator variable : field.getVariables()) {
-
-                String fieldType = variable.getTypeAsString();
-
-                variableTypes.put(
-                        variable.getNameAsString(),
-                        fieldType
-                );
-
-                addDependency(
-                        dependencies,
-                        fieldType,
-                        injectionType == null ? "FIELD" : injectionType,
-                        "Field: " + variable.getNameAsString(),
-                        injectionType,
-                        annotationName,
-                        field.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
-                        imports,
-                        packageName,
-                        projectTypes,
-                        sourceFile
-                );
+            if (!(member instanceof ConstructorDeclaration constructor)) {
+                continue;
             }
-        }
 
-        // Detect constructor parameters and constructor injection.
-        List<ConstructorDeclaration> constructors =
-                type.getMembers().stream()
-                        .filter(ConstructorDeclaration.class::isInstance)
-                        .map(ConstructorDeclaration.class::cast)
-                        .toList();
+            String injectionType =
+                    determineInjectionType(
+                            constructor.getAnnotations(),
+                            "CONSTRUCTOR"
+                    );
 
-        for (ConstructorDeclaration constructor : constructors) {
+            String annotationName =
+                    findInjectionAnnotation(constructor.getAnnotations());
 
-            String injectionType = determineInjectionType(
-                    constructor.getAnnotations()
-            );
-
-            String annotationName = findInjectionAnnotation(
-                    constructor.getAnnotations()
-            );
+            Map<String, String> constructorVariables =
+                    new HashMap<>(fieldTypes);
 
             for (Parameter parameter : constructor.getParameters()) {
 
-                variableTypes.put(
-                        parameter.getNameAsString(),
-                        parameter.getTypeAsString()
-                );
+                String parameterName = parameter.getNameAsString();
+                String parameterType = parameter.getTypeAsString();
 
-                addDependency(
+                constructorVariables.put(parameterName, parameterType);
+
+                addTypeDependencies(
                         dependencies,
-                        parameter.getTypeAsString(),
+                        parameterType,
                         "CONSTRUCTOR_PARAMETER",
                         "Constructor: " + constructor.getNameAsString(),
-                        injectionType == null
-                                ? null
-                                : "CONSTRUCTOR_INJECTION",
+                        injectionType,
                         annotationName,
-                        parameter.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
+                        parameter,
                         imports,
                         packageName,
                         projectTypes,
@@ -203,8 +175,37 @@ public class DependencyExtractor {
                 );
             }
 
-            // Detect object creation inside constructors.
+            detectLocalVariables(
+                    constructor,
+                    constructorVariables,
+                    dependencies,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile,
+                    "Constructor: " + constructor.getNameAsString()
+            );
+
             detectObjectCreation(
+                    constructor,
+                    dependencies,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+
+            detectMethodCalls(
+                    constructor,
+                    constructorVariables,
+                    dependencies,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+
+            detectMethodReferences(
                     constructor,
                     dependencies,
                     imports,
@@ -214,40 +215,40 @@ public class DependencyExtractor {
             );
         }
 
-        // Detect method parameters, setter injection and method bodies.
+        // Detect method dependencies and method injection.
         for (MethodDeclaration method : type.getMethods()) {
 
-            String methodInjection = determineInjectionType(
-                    method.getAnnotations()
-            );
+            String injectionType =
+                    determineInjectionType(
+                            method.getAnnotations(),
+                            "METHOD"
+                    );
 
-            String annotationName = findInjectionAnnotation(
-                    method.getAnnotations()
-            );
+            String annotationName =
+                    findInjectionAnnotation(method.getAnnotations());
 
             boolean setterInjection =
-                    methodInjection != null
+                    injectionType != null
                             && method.getNameAsString().startsWith("set");
+
+            Map<String, String> methodVariables =
+                    new HashMap<>(fieldTypes);
 
             for (Parameter parameter : method.getParameters()) {
 
-                variableTypes.put(
-                        parameter.getNameAsString(),
-                        parameter.getTypeAsString()
-                );
+                String parameterName = parameter.getNameAsString();
+                String parameterType = parameter.getTypeAsString();
 
-                addDependency(
+                methodVariables.put(parameterName, parameterType);
+
+                addTypeDependencies(
                         dependencies,
-                        parameter.getTypeAsString(),
+                        parameterType,
                         "METHOD_PARAMETER",
                         "Method: " + method.getNameAsString(),
-                        setterInjection ? "SETTER_INJECTION"
-                                : methodInjection == null
-                                ? null : "METHOD_INJECTION",
+                        setterInjection ? "SETTER_INJECTION" : injectionType,
                         annotationName,
-                        parameter.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
+                        parameter,
                         imports,
                         packageName,
                         projectTypes,
@@ -255,51 +256,32 @@ public class DependencyExtractor {
                 );
             }
 
-            // Detect method return types.
-            addDependency(
+            // Detect method return type.
+            addTypeDependencies(
                     dependencies,
                     method.getTypeAsString(),
                     "METHOD_RETURN_TYPE",
                     "Method: " + method.getNameAsString(),
                     null,
                     null,
-                    method.getRange()
-                            .map(range -> range.begin.line)
-                            .orElse(0),
+                    method,
                     imports,
                     packageName,
                     projectTypes,
                     sourceFile
             );
 
-            // Detect local variable declarations.
-            method.findAll(VariableDeclarator.class).forEach(variable -> {
+            detectLocalVariables(
+                    method,
+                    methodVariables,
+                    dependencies,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile,
+                    "Method: " + method.getNameAsString()
+            );
 
-                String variableType = variable.getTypeAsString();
-
-                variableTypes.put(
-                        variable.getNameAsString(),
-                        variableType
-                );
-
-                addDependency(
-                        dependencies,
-                        variableType,
-                        "LOCAL_VARIABLE",
-                        "Method: " + method.getNameAsString(),
-                        null,
-                        null,
-                        variable.getRange()
-                                .map(range -> range.begin.line)
-                                .orElse(0),
-                        imports,
-                        packageName,
-                        projectTypes,
-                        sourceFile
-                );
-            });
-
-            // Detect object creation and method calls.
             detectObjectCreation(
                     method,
                     dependencies,
@@ -311,58 +293,37 @@ public class DependencyExtractor {
 
             detectMethodCalls(
                     method,
+                    methodVariables,
                     dependencies,
-                    variableTypes,
                     imports,
                     packageName,
                     projectTypes,
                     sourceFile
             );
 
-            // Detect method references such as UserService::save.
-            method.findAll(MethodReferenceExpr.class)
-                    .forEach(reference -> {
-
-                        String referenceName =
-                                reference.getIdentifier();
-
-                        String scopeName =
-                                reference.getScope().toString();
-
-                        addDependency(
-                                dependencies,
-                                scopeName,
-                                "METHOD_REFERENCE",
-                                "Method reference: " + referenceName,
-                                null,
-                                null,
-                                reference.getRange()
-                                        .map(range -> range.begin.line)
-                                        .orElse(0),
-                                imports,
-                                packageName,
-                                projectTypes,
-                                sourceFile
-                        );
-                    });
+            detectMethodReferences(
+                    method,
+                    dependencies,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
         }
 
-        // Detect annotation-based class relationships.
+        // Detect annotation dependencies.
         type.findAll(AnnotationExpr.class).forEach(annotation -> {
 
-            String annotationName =
-                    annotation.getNameAsString();
+            String annotationName = annotation.getNameAsString();
 
             addDependency(
                     dependencies,
                     annotationName,
                     "ANNOTATION",
-                    "Annotation on " + type.getNameAsString(),
+                    "Annotation: @" + annotationName,
                     null,
-                    annotationName,
-                    annotation.getRange()
-                            .map(range -> range.begin.line)
-                            .orElse(0),
+                    "@" + annotationName,
+                    annotation,
                     imports,
                     packageName,
                     projectTypes,
@@ -370,80 +331,365 @@ public class DependencyExtractor {
             );
         });
 
+        // Identify the current class's fully qualified name.
+        String currentClassName = packageName.isBlank()
+                ? type.getNameAsString()
+                : packageName + "." + type.getNameAsString();
+
+        // Remove self-dependencies.
+        dependencies.values().removeIf(dependency ->
+                dependency.getDependencyName().equals(currentClassName)
+        );
+
         return new ArrayList<>(dependencies.values());
     }
 
-    private void detectObjectCreation(
-            com.github.javaparser.ast.Node node,
+    private void detectImports(
             Map<String, JavaDependencyInfo> dependencies,
             List<ImportDeclaration> imports,
             String packageName,
             Set<String> projectTypes,
             Path sourceFile) {
 
-        node.findAll(ObjectCreationExpr.class)
-                .forEach(expression -> {
+        for (ImportDeclaration declaration : imports) {
 
-                    addDependency(
-                            dependencies,
-                            expression.getTypeAsString(),
-                            "OBJECT_CREATION",
-                            "new " + expression.getTypeAsString(),
-                            null,
-                            null,
-                            expression.getRange()
-                                    .map(range -> range.begin.line)
-                                    .orElse(0),
-                            imports,
-                            packageName,
-                            projectTypes,
-                            sourceFile
+            String importedName = declaration.getNameAsString();
+
+            if (declaration.isStatic()) {
+
+                String ownerName = importedName;
+
+                if (!declaration.isAsterisk()) {
+
+                    int lastDot = importedName.lastIndexOf('.');
+
+                    if (lastDot > 0) {
+                        ownerName = importedName.substring(0, lastDot);
+                    }
+                }
+
+                addDependency(
+                        dependencies,
+                        ownerName,
+                        "STATIC_IMPORT",
+                        "Static import: " + importedName,
+                        null,
+                        null,
+                        declaration,
+                        imports,
+                        packageName,
+                        projectTypes,
+                        sourceFile
+                );
+
+            } else if (declaration.isAsterisk()) {
+
+                addDependency(
+                        dependencies,
+                        importedName + ".*",
+                        "WILDCARD_IMPORT",
+                        "Wildcard import: " + importedName,
+                        null,
+                        null,
+                        declaration,
+                        imports,
+                        packageName,
+                        projectTypes,
+                        sourceFile
+                );
+
+            } else {
+
+                addDependency(
+                        dependencies,
+                        importedName,
+                        "IMPORT",
+                        "Import: " + importedName,
+                        null,
+                        null,
+                        declaration,
+                        imports,
+                        packageName,
+                        projectTypes,
+                        sourceFile
+                );
+            }
+        }
+    }
+
+    private void detectLocalVariables(
+            Node node,
+            Map<String, String> variableTypes,
+            Map<String, JavaDependencyInfo> dependencies,
+            List<ImportDeclaration> imports,
+            String packageName,
+            Set<String> projectTypes,
+            Path sourceFile,
+            String source) {
+
+        node.findAll(VariableDeclarator.class).forEach(variable -> {
+
+            String variableName = variable.getNameAsString();
+            String variableType = variable.getTypeAsString();
+
+            variableTypes.put(variableName, variableType);
+
+            addTypeDependencies(
+                    dependencies,
+                    variableType,
+                    "LOCAL_VARIABLE",
+                    source,
+                    null,
+                    null,
+                    variable,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+        });
+
+        // Catch parameters are also local variables.
+        node.findAll(CatchClause.class).forEach(catchClause -> {
+
+            Parameter parameter = catchClause.getParameter();
+
+            variableTypes.put(
+                    parameter.getNameAsString(),
+                    parameter.getTypeAsString()
+            );
+
+            addTypeDependencies(
+                    dependencies,
+                    parameter.getTypeAsString(),
+                    "CATCH_PARAMETER",
+                    source,
+                    null,
+                    null,
+                    parameter,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+        });
+
+        // Lambda parameters with explicitly declared types.
+        node.findAll(LambdaExpr.class).forEach(lambda -> {
+
+            lambda.getParameters().forEach(parameter -> {
+
+                if (!parameter.getType().isUnknownType()) {
+
+                    variableTypes.put(
+                            parameter.getNameAsString(),
+                            parameter.getTypeAsString()
                     );
-                });
+                }
+            });
+        });
+    }
+
+    private void detectObjectCreation(
+            Node node,
+            Map<String, JavaDependencyInfo> dependencies,
+            List<ImportDeclaration> imports,
+            String packageName,
+            Set<String> projectTypes,
+            Path sourceFile) {
+
+        node.findAll(ObjectCreationExpr.class).forEach(expression -> {
+
+            addTypeDependencies(
+                    dependencies,
+                    expression.getTypeAsString(),
+                    "OBJECT_CREATION",
+                    "Object creation: new " + expression.getTypeAsString(),
+                    null,
+                    null,
+                    expression,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+        });
     }
 
     private void detectMethodCalls(
-            com.github.javaparser.ast.Node node,
-            Map<String, JavaDependencyInfo> dependencies,
+            Node node,
             Map<String, String> variableTypes,
+            Map<String, JavaDependencyInfo> dependencies,
             List<ImportDeclaration> imports,
             String packageName,
             Set<String> projectTypes,
             Path sourceFile) {
 
-        node.findAll(MethodCallExpr.class)
-                .forEach(methodCall -> {
+        node.findAll(MethodCallExpr.class).forEach(methodCall -> {
 
-                    if (methodCall.getScope().isEmpty()) {
-                        return;
-                    }
+            if (methodCall.getScope().isEmpty()) {
+                return;
+            }
 
-                    String scopeName =
-                            methodCall.getScope().get().toString();
+            Expression scope = methodCall.getScope().get();
 
-                    String dependencyName =
-                            variableTypes.getOrDefault(
-                                    scopeName,
-                                    scopeName
-                            );
+            String scopeName;
 
-                    addDependency(
-                            dependencies,
-                            dependencyName,
-                            "METHOD_CALL",
-                            "Method call: "
-                                    + methodCall.getNameAsString(),
-                            null,
-                            null,
-                            methodCall.getRange()
-                                    .map(range -> range.begin.line)
-                                    .orElse(0),
+            if (scope instanceof NameExpr nameExpr) {
+
+                String name = nameExpr.getNameAsString();
+
+                if (variableTypes.containsKey(name)) {
+
+                    scopeName = variableTypes.get(name);
+
+                } else {
+
+                    // Only treat an unresolved simple name as a class
+                    // when it matches an import or project type.
+                    scopeName = resolveTypeName(
+                            name,
                             imports,
                             packageName,
-                            projectTypes,
-                            sourceFile
+                            projectTypes
                     );
-                });
+
+                    if (scopeName.equals(name)
+                            && !projectTypes.contains(name)
+                            && !hasMatchingImport(name, imports)) {
+                        return;
+                    }
+                }
+
+            } else if (scope instanceof ThisExpr) {
+
+                return;
+
+            } else if (scope instanceof SuperExpr) {
+
+                return;
+
+            } else {
+
+                // Avoid recording complete expressions such as
+                // service.getClient() as if they were class names.
+                return;
+            }
+
+            addDependency(
+                    dependencies,
+                    scopeName,
+                    "METHOD_CALL",
+                    "Method call: " + methodCall.getNameAsString(),
+                    null,
+                    null,
+                    methodCall,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+        });
+    }
+
+    private void detectMethodReferences(
+            Node node,
+            Map<String, JavaDependencyInfo> dependencies,
+            List<ImportDeclaration> imports,
+            String packageName,
+            Set<String> projectTypes,
+            Path sourceFile) {
+
+        node.findAll(MethodReferenceExpr.class).forEach(reference -> {
+
+            String scopeName = reference.getScope().toString();
+
+            addDependency(
+                    dependencies,
+                    scopeName,
+                    "METHOD_REFERENCE",
+                    "Method reference: " + reference.getIdentifier(),
+                    null,
+                    null,
+                    reference,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+        });
+    }
+
+    private void addTypeDependencies(
+            Map<String, JavaDependencyInfo> dependencies,
+            String typeName,
+            String dependencyType,
+            String source,
+            String injectionType,
+            String annotationName,
+            Node node,
+            List<ImportDeclaration> imports,
+            String packageName,
+            Set<String> projectTypes,
+            Path sourceFile) {
+
+        if (typeName == null || typeName.isBlank()) {
+            return;
+        }
+
+        try {
+
+            com.github.javaparser.ast.type.Type parsedType =
+                    StaticJavaParser.parseType(typeName);
+
+            Set<String> referencedTypes = new LinkedHashSet<>();
+
+            parsedType.findAll(
+                    com.github.javaparser.ast.type.ClassOrInterfaceType.class
+            ).forEach(classType ->
+                    referencedTypes.add(classType.getNameWithScope())
+            );
+
+            if (parsedType.isClassOrInterfaceType()) {
+                referencedTypes.add(
+                        parsedType.asClassOrInterfaceType().getNameWithScope()
+                );
+            }
+
+            for (String referencedType : referencedTypes) {
+
+                addDependency(
+                        dependencies,
+                        referencedType,
+                        dependencyType,
+                        source,
+                        injectionType,
+                        annotationName,
+                        node,
+                        imports,
+                        packageName,
+                        projectTypes,
+                        sourceFile
+                );
+            }
+
+        } catch (Exception ignored) {
+
+            // Fall back to the original type name if parsing fails.
+            addDependency(
+                    dependencies,
+                    typeName,
+                    dependencyType,
+                    source,
+                    injectionType,
+                    annotationName,
+                    node,
+                    imports,
+                    packageName,
+                    projectTypes,
+                    sourceFile
+            );
+        }
     }
 
     private void addDependency(
@@ -453,7 +699,7 @@ public class DependencyExtractor {
             String source,
             String injectionType,
             String annotationName,
-            int lineNumber,
+            Node node,
             List<ImportDeclaration> imports,
             String packageName,
             Set<String> projectTypes,
@@ -463,18 +709,44 @@ public class DependencyExtractor {
             return;
         }
 
-        if (isBasicJavaType(dependencyName)) {
+        String normalizedName = dependencyName.trim();
+
+        if (normalizedName.endsWith(".*")) {
+            normalizedName = normalizedName.substring(
+                    0,
+                    normalizedName.length() - 2
+            );
+
+        } else {
+
+            if (isBasicJavaType(normalizedName)) {
+                return;
+            }
+
+            normalizedName = resolveTypeName(
+                    normalizedName,
+                    imports,
+                    packageName,
+                    projectTypes
+            );
+        }
+
+        if (normalizedName.isBlank()) {
             return;
         }
 
         String category = determineDependencyCategory(
-                dependencyName,
+                normalizedName,
                 imports,
                 packageName,
                 projectTypes
         );
 
-        String key = dependencyName + "|"
+        int lineNumber = node.getRange()
+                .map(range -> range.begin.line)
+                .orElse(0);
+
+        String key = normalizedName + "|"
                 + dependencyType + "|"
                 + source + "|"
                 + lineNumber;
@@ -482,7 +754,7 @@ public class DependencyExtractor {
         dependencies.putIfAbsent(
                 key,
                 new JavaDependencyInfo(
-                        dependencyName,
+                        normalizedName,
                         dependencyType,
                         source,
                         category,
@@ -494,42 +766,158 @@ public class DependencyExtractor {
         );
     }
 
-    private String determineInjectionType(
-            List<com.github.javaparser.ast.expr.AnnotationExpr> annotations) {
+    private String resolveTypeName(
+            String typeName,
+            List<ImportDeclaration> imports,
+            String packageName,
+            Set<String> projectTypes) {
 
-        for (var annotation : annotations) {
+        String normalized = typeName.trim();
 
-            String name = annotation.getNameAsString();
-
-            String simpleName = name.substring(
-                    name.lastIndexOf('.') + 1
+        if (normalized.contains("<")) {
+            normalized = normalized.substring(
+                    0,
+                    normalized.indexOf('<')
             );
+        }
 
-            if (INJECTION_ANNOTATIONS.containsKey(simpleName)) {
-                return INJECTION_ANNOTATIONS.get(simpleName);
+        while (normalized.endsWith("[]")) {
+            normalized = normalized.substring(0, normalized.length() - 2);
+        }
+
+        // Already fully qualified.
+        if (normalized.contains(".")) {
+            return normalized;
+        }
+
+        // Resolve explicit imports, including static imports.
+        for (ImportDeclaration declaration : imports) {
+
+            String imported = declaration.getNameAsString();
+
+            if (declaration.isStatic() && !declaration.isAsterisk()) {
+
+                int lastDot = imported.lastIndexOf('.');
+
+                if (lastDot > 0) {
+                    imported = imported.substring(0, lastDot);
+                }
             }
+
+            if (!declaration.isAsterisk()) {
+
+                String simpleName =
+                        imported.substring(imported.lastIndexOf('.') + 1);
+
+                if (simpleName.equals(normalized)) {
+                    return imported;
+                }
+
+            } else if (!declaration.isStatic()) {
+
+                String candidate = imported + "." + normalized;
+
+                if (projectTypes.contains(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        // Resolve types from the same package.
+        String samePackage = packageName.isBlank()
+                ? normalized
+                : packageName + "." + normalized;
+
+        if (projectTypes.contains(samePackage)) {
+            return samePackage;
+        }
+
+        // Resolve common java.lang types without explicit imports.
+        if (JAVA_LANG_TYPES.contains(normalized)) {
+            return "java.lang." + normalized;
+        }
+
+        return normalized;
+    }
+
+    private boolean hasMatchingImport(
+            String typeName,
+            List<ImportDeclaration> imports) {
+
+        for (ImportDeclaration declaration : imports) {
+
+            String imported = declaration.getNameAsString();
+
+            if (declaration.isStatic() && !declaration.isAsterisk()) {
+
+                int lastDot = imported.lastIndexOf('.');
+
+                if (lastDot > 0) {
+                    imported = imported.substring(0, lastDot);
+                }
+            }
+
+            if (!declaration.isAsterisk()
+                    && imported.endsWith("." + typeName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private String determineInjectionType(
+            List<AnnotationExpr> annotations,
+            String target) {
+
+        for (AnnotationExpr annotation : annotations) {
+
+            String name = getSimpleName(annotation.getNameAsString());
+
+            if (!INJECTION_ANNOTATIONS.containsKey(name)) {
+                continue;
+            }
+
+            String annotationType = INJECTION_ANNOTATIONS.get(name);
+
+            if ("OSGI_REFERENCE".equals(annotationType)
+                    || "RESOURCE_INJECTION".equals(annotationType)
+                    || "EJB_INJECTION".equals(annotationType)) {
+                return annotationType;
+            }
+
+            if ("CONSTRUCTOR".equals(target)) {
+                return "CONSTRUCTOR_INJECTION";
+            }
+
+            if ("METHOD".equals(target)) {
+                return "METHOD_INJECTION";
+            }
+
+            return "FIELD_INJECTION";
         }
 
         return null;
     }
 
     private String findInjectionAnnotation(
-            List<com.github.javaparser.ast.expr.AnnotationExpr> annotations) {
+            List<AnnotationExpr> annotations) {
 
-        for (var annotation : annotations) {
+        for (AnnotationExpr annotation : annotations) {
 
-            String name = annotation.getNameAsString();
+            String name = getSimpleName(annotation.getNameAsString());
 
-            String simpleName = name.substring(
-                    name.lastIndexOf('.') + 1
-            );
-
-            if (INJECTION_ANNOTATIONS.containsKey(simpleName)) {
-                return "@" + simpleName;
+            if (INJECTION_ANNOTATIONS.containsKey(name)) {
+                return "@" + name;
             }
         }
 
         return null;
+    }
+
+    private String getSimpleName(String name) {
+
+        return name.substring(name.lastIndexOf('.') + 1);
     }
 
     private boolean isBasicJavaType(String typeName) {
@@ -540,10 +928,11 @@ public class DependencyExtractor {
 
         String normalized = typeName.trim();
 
-        int genericStart = normalized.indexOf('<');
-
-        if (genericStart != -1) {
-            normalized = normalized.substring(0, genericStart).trim();
+        if (normalized.contains("<")) {
+            normalized = normalized.substring(
+                    0,
+                    normalized.indexOf('<')
+            );
         }
 
         while (normalized.endsWith("[]")) {
@@ -582,66 +971,7 @@ public class DependencyExtractor {
 
         String normalized = dependencyName.trim();
 
-        int genericStart = normalized.indexOf('<');
-
-        if (genericStart != -1) {
-            normalized = normalized.substring(0, genericStart).trim();
-        }
-
-        while (normalized.endsWith("[]")) {
-            normalized = normalized.substring(
-                    0,
-                    normalized.length() - 2
-            );
-        }
-
         if (projectTypes.contains(normalized)) {
-            return "INTERNAL_PROJECT";
-        }
-
-        for (ImportDeclaration declaration : imports) {
-
-            if (declaration.isStatic()) {
-                continue;
-            }
-
-            String imported = declaration.getNameAsString();
-
-            if (!declaration.isAsterisk()) {
-
-                String simpleName = imported.substring(
-                        imported.lastIndexOf('.') + 1
-                );
-
-                if (simpleName.equals(normalized)
-                        || imported.equals(normalized)) {
-
-                    if (projectTypes.contains(imported)) {
-                        return "INTERNAL_PROJECT";
-                    }
-
-                    return classifyPackage(imported);
-                }
-            } else {
-
-                String candidate = imported + "." + normalized;
-
-                if (projectTypes.contains(candidate)) {
-                    return "INTERNAL_PROJECT";
-                }
-
-                if (imported.startsWith("java.")) {
-                    return "STANDARD_LIBRARY";
-                }
-
-                if (isExternalFramework(imported)) {
-                    return "EXTERNAL_FRAMEWORK";
-                }
-            }
-        }
-
-        if (!packageName.isBlank()
-                && projectTypes.contains(packageName + "." + normalized)) {
             return "INTERNAL_PROJECT";
         }
 
@@ -649,17 +979,30 @@ public class DependencyExtractor {
             return "STANDARD_LIBRARY";
         }
 
-        return classifyPackage(normalized);
-    }
+        String resolvedName = resolveTypeName(
+                normalized,
+                imports,
+                packageName,
+                projectTypes
+        );
 
-    private String classifyPackage(String name) {
+        if (projectTypes.contains(resolvedName)) {
+            return "INTERNAL_PROJECT";
+        }
 
-        if (name.startsWith("java.")) {
+        if (resolvedName.startsWith("java.")) {
             return "STANDARD_LIBRARY";
         }
 
-        if (isExternalFramework(name)) {
+        if (isExternalFramework(resolvedName)) {
             return "EXTERNAL_FRAMEWORK";
+        }
+
+        // A fully qualified imported class outside the scanned
+        // repository is an external dependency, even if its
+        // framework is not in the recognized package list.
+        if (resolvedName.contains(".")) {
+            return "EXTERNAL_DEPENDENCY";
         }
 
         return "UNKNOWN";
@@ -670,8 +1013,13 @@ public class DependencyExtractor {
         return name.startsWith("javax.")
                 || name.startsWith("jakarta.")
                 || name.startsWith("org.springframework.")
+                || name.startsWith("org.osgi.")
                 || name.startsWith("com.liferay.")
                 || name.startsWith("org.apache.")
-                || name.startsWith("com.fasterxml.");
+                || name.startsWith("com.fasterxml.")
+                || name.startsWith("org.slf4j.")
+                || name.startsWith("org.hibernate.")
+                || name.startsWith("org.junit.")
+                || name.startsWith("org.mockito.");
     }
 }

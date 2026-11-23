@@ -33,6 +33,7 @@ public class FileDiscoveryService {
         fileTypes.put(".kts", "KOTLIN");
         fileTypes.put(".scala", "SCALA");
         fileTypes.put(".sc", "SCALA");
+        fileTypes.put(".bnd", "BND");
 
         // Python
         fileTypes.put(".py", "PYTHON");
@@ -76,6 +77,7 @@ public class FileDiscoveryService {
         fileTypes.put(".svelte", "SVELTE");
         fileTypes.put(".html", "HTML");
         fileTypes.put(".htm", "HTML");
+        fileTypes.put(".jsp", "JSP");
         fileTypes.put(".scss", "STYLESHEETS");
         fileTypes.put(".sass", "STYLESHEETS");
         fileTypes.put(".less", "STYLESHEETS");
