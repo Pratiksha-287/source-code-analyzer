@@ -3,7 +3,9 @@ package org.example.sourcecodeanalyser.model.frontend;
 
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record ReactAnalysis(
         List<ComponentInfo> components,
         List<HookInfo> hooks,

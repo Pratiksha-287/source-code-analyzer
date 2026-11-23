@@ -7,6 +7,9 @@ import org.example.sourcecodeanalyser.analyzer.frontend.ReactAnalyzer;
 import org.example.sourcecodeanalyser.frontend.discovery.FrontendFileDiscoveryService;
 import org.example.sourcecodeanalyser.frontend.model.FrontendFileParseResult;
 import org.example.sourcecodeanalyser.model.clientextension.FrontendFileAnalysis;
+import org.example.sourcecodeanalyser.model.frontend.FunctionAnalysis;
+import org.example.sourcecodeanalyser.model.frontend.ImportExportAnalysis;
+import org.example.sourcecodeanalyser.model.frontend.ReactAnalysis;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
@@ -35,8 +38,7 @@ public class FrontendFileAnalysisService {
         this.reactAnalyzer = reactAnalyzer;
     }
 
-    public List<FrontendFileAnalysis> analyzeExtension(
-            Path extensionPath) {
+    public List<FrontendFileAnalysis> analyzeExtension(Path extensionPath) {
 
         List<Path> frontendFiles =
                 discoveryService.discoverFrontendFiles(extensionPath);
@@ -77,13 +79,49 @@ public class FrontendFileAnalysisService {
 
         var parseOutput = result.parseOutput();
 
+        ImportExportAnalysis importExport =
+                importExportAnalyzer.analyze(parseOutput);
+
+        FunctionAnalysis functions =
+                functionAnalyzer.analyze(parseOutput);
+
+        ReactAnalysis react =
+                reactAnalyzer.analyze(parseOutput);
+
         return new FrontendFileAnalysis(
                 relativePath,
                 true,
                 null,
-                importExportAnalyzer.analyze(parseOutput),
-                functionAnalyzer.analyze(parseOutput),
-                reactAnalyzer.analyze(parseOutput)
+                hasImportExportData(importExport) ? importExport : null,
+                hasFunctionData(functions) ? functions : null,
+                hasReactData(react) ? react : null
+        );
+    }
+
+    private boolean hasImportExportData(ImportExportAnalysis analysis) {
+        return analysis != null
+                && ((analysis.imports() != null && !analysis.imports().isEmpty())
+                || (analysis.exports() != null && !analysis.exports().isEmpty()));
+    }
+
+    private boolean hasFunctionData(FunctionAnalysis analysis) {
+        return analysis != null
+                && analysis.functions() != null
+                && !analysis.functions().isEmpty();
+    }
+
+    private boolean hasReactData(ReactAnalysis analysis) {
+        return analysis != null
+                && (
+                !analysis.components().isEmpty()
+                        || !analysis.hooks().isEmpty()
+                        || !analysis.apiInteractions().isEmpty()
+                        || !analysis.axiosInstances().isEmpty()
+                        || !analysis.customHooks().isEmpty()
+                        || !analysis.routes().isEmpty()
+                        || !analysis.navigations().isEmpty()
+                        || !analysis.routerHooks().isEmpty()
+                        || !analysis.functions().isEmpty()
         );
     }
 }

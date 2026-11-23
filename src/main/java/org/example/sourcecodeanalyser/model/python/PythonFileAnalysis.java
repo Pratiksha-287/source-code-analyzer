@@ -47,9 +47,8 @@ public record PythonFileAnalysis(
 
     public record SourceLocation(
             int startLine,
-            int startColumn,
-            int endLine,
-            int endColumn
+            int endLine
+
     ) {}
 
     public record PythonImportInfo(
@@ -130,7 +129,7 @@ public record PythonFileAnalysis(
     ) {}
 
     public record PythonLambdaInfo(
-            List<String> parameters,
+            List<PythonParameterInfo> parameters,
             String expression,
             SourceLocation location
     ) {

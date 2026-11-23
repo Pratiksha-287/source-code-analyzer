@@ -1,15 +1,17 @@
-
 package org.example.sourcecodeanalyser.analyzer.python;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.example.sourcecodeanalyser.model.python.PythonFileAnalysis;
-import org.example.sourcecodeanalyser.model.python.PythonFileAnalysis.*;
+
 import org.example.sourcecodeanalyser.parser.python.Python3Parser;
 import org.example.sourcecodeanalyser.parser.python.Python3ParserBaseVisitor;
 import org.example.sourcecodeanalyser.parser.python.PythonAstTextExtractor;
 import org.example.sourcecodeanalyser.parser.python.PythonSourceParser;
+
+import org.example.sourcecodeanalyser.model.python.PythonFileAnalysis;
+import org.example.sourcecodeanalyser.model.python.PythonFileAnalysis.*;
+
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -794,11 +796,11 @@ public class PythonFileAnalyzer {
         }
 
 
-        private List<String> extractLambdaParameters(
+
+        private List<PythonParameterInfo> extractLambdaParameters(
                 Python3Parser.VarargslistContext ctx
         ) {
-
-            List<String> parameters = new ArrayList<>();
+            List<PythonParameterInfo> parameters = new ArrayList<>();
 
             if (ctx == null || ctx.children == null) {
                 return parameters;
@@ -806,7 +808,11 @@ public class PythonFileAnalyzer {
 
             List<ParseTree> children = ctx.children;
 
-            String nextPrefix = "";
+            String nextParameterType = "POSITIONAL_OR_KEYWORD";
+            boolean keywordOnlyMode = false;
+            boolean expectingDefault = false;
+
+            List<ParameterBuilder> builders = new ArrayList<>();
 
             for (int i = 0; i < children.size(); i++) {
 
@@ -814,12 +820,44 @@ public class PythonFileAnalyzer {
 
                 if (child instanceof Python3Parser.VfpdefContext parameter) {
 
-                    parameters.add(
-                            nextPrefix + parameter.name().getText()
+                    String parameterType = nextParameterType;
+
+                    if ("POSITIONAL_OR_KEYWORD".equals(parameterType)
+                            && keywordOnlyMode) {
+                        parameterType = "KEYWORD_ONLY";
+                    }
+
+                    ParameterBuilder builder = new ParameterBuilder(
+                            parameter.name().getText(),
+                            parameterType,
+                            null,
+                            location(parameter)
                     );
 
-                    nextPrefix = "";
+                    builders.add(builder);
 
+                    nextParameterType = keywordOnlyMode
+                            ? "KEYWORD_ONLY"
+                            : "POSITIONAL_OR_KEYWORD";
+
+                    expectingDefault = false;
+
+                    if ("VAR_POSITIONAL".equals(parameterType)) {
+                        keywordOnlyMode = true;
+                        nextParameterType = "KEYWORD_ONLY";
+                    }
+
+                    continue;
+                }
+
+                if (child instanceof Python3Parser.TestContext test
+                        && expectingDefault
+                        && !builders.isEmpty()) {
+
+                    builders.get(builders.size() - 1).defaultValue =
+                            PythonAstTextExtractor.getText(test);
+
+                    expectingDefault = false;
                     continue;
                 }
 
@@ -827,26 +865,45 @@ public class PythonFileAnalyzer {
 
                     int tokenType = terminal.getSymbol().getType();
 
-                    if (tokenType == Python3Parser.STAR) {
+                    if (tokenType == Python3Parser.ASSIGN) {
+
+                        expectingDefault = true;
+
+                    } else if (tokenType == Python3Parser.STAR) {
 
                         boolean hasNamedVararg =
                                 i + 1 < children.size()
                                         && children.get(i + 1)
                                         instanceof Python3Parser.VfpdefContext;
 
-                        // *args, but not a bare * keyword-only separator.
-                        nextPrefix = hasNamedVararg ? "*" : "";
+                        if (hasNamedVararg) {
+                            nextParameterType = "VAR_POSITIONAL";
+                        } else {
+                            keywordOnlyMode = true;
+                            nextParameterType = "KEYWORD_ONLY";
+                        }
 
                     } else if (tokenType == Python3Parser.POWER) {
 
-                        // **kwargs
-                        nextPrefix = "**";
+                        nextParameterType = "VAR_KEYWORD";
                     }
                 }
             }
 
+            for (ParameterBuilder builder : builders) {
+
+                parameters.add(new PythonParameterInfo(
+                        builder.name,
+                        builder.parameterType,
+                        builder.defaultValue,
+                        builder.annotation,
+                        builder.location
+                ));
+            }
+
             return parameters;
         }
+
 
 
         // ---------------------------------------------------------
@@ -1757,9 +1814,7 @@ public class PythonFileAnalyzer {
 
             return new SourceLocation(
                     PythonAstTextExtractor.getStartLine(ctx),
-                    PythonAstTextExtractor.getStartColumn(ctx),
-                    PythonAstTextExtractor.getEndLine(ctx),
-                    PythonAstTextExtractor.getEndColumn(ctx)
+                    PythonAstTextExtractor.getEndLine(ctx)
             );
         }
     }
