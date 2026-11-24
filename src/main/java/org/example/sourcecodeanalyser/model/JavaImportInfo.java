@@ -1,6 +1,8 @@
-
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class JavaImportInfo {
 
     private String importName;
@@ -21,10 +23,12 @@ public class JavaImportInfo {
         return importName;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public boolean isStatic() {
         return isStatic;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public boolean isWildcard() {
         return isWildcard;
     }

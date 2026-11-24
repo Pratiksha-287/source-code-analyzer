@@ -1,8 +1,9 @@
-
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class JavaFieldInfo {
 
     private String fieldName;
@@ -27,8 +28,8 @@ public class JavaFieldInfo {
         this.accessModifier = accessModifier;
         this.annotations = annotations;
         this.modifiers = modifiers;
-        this.startLine=startLine;
-        this.endLine=endLine;
+        this.startLine = startLine;
+        this.endLine = endLine;
     }
 
     public String getFieldName() {
@@ -51,11 +52,13 @@ public class JavaFieldInfo {
         return modifiers;
     }
 
-    public int getStartLine(){
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public int getStartLine() {
         return startLine;
     }
 
-    public int getEndLine(){
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public int getEndLine() {
         return endLine;
     }
 }

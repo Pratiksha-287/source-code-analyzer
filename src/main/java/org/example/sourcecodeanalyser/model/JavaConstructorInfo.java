@@ -1,8 +1,9 @@
-
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class JavaConstructorInfo {
 
     private String constructorName;
@@ -27,8 +28,8 @@ public class JavaConstructorInfo {
         this.annotations = annotations;
         this.accessModifier = accessModifier;
         this.modifiers = modifiers;
-        this.startLine=startLine;
-        this.endLine=endLine;
+        this.startLine = startLine;
+        this.endLine = endLine;
     }
 
     public String getConstructorName() {
@@ -51,11 +52,13 @@ public class JavaConstructorInfo {
         return modifiers;
     }
 
-    public int getStartLine(){
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public int getStartLine() {
         return startLine;
     }
 
-    public int getEndLine(){
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public int getEndLine() {
         return endLine;
     }
 }

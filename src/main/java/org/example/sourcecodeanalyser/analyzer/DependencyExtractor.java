@@ -760,7 +760,7 @@ public class DependencyExtractor {
                         category,
                         injectionType,
                         annotationName,
-                        sourceFile.toString(),
+                        sourceFile.toString().replace('\\', '/'),
                         lineNumber
                 )
         );

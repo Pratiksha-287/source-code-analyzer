@@ -1,13 +1,14 @@
-
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class JavaDependencyInfo {
 
     private String dependencyName;
     private String dependencyType;
     private String source;
     private String dependencyCategory;
-
     private String injectionType;
     private String annotationName;
     private String sourceFile;
@@ -32,7 +33,6 @@ public class JavaDependencyInfo {
         this.sourceFile = sourceFile;
         this.lineNumber = lineNumber;
     }
-
 
     public JavaDependencyInfo(
             String dependencyName,
@@ -80,6 +80,7 @@ public class JavaDependencyInfo {
         return sourceFile;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getLineNumber() {
         return lineNumber;
     }

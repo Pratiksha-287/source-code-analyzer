@@ -1,6 +1,8 @@
 
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -9,10 +11,13 @@ import java.util.Map;
 
 public class FileDiscoveryResult {
 
+    private final int totalFiles;
+    private final Map<String, Integer> fileCountsByType;
+
+    @JsonIgnore
     private final Path repositoryPath;
 
-    private final int totalFiles;
-
+    @JsonIgnore
     private final Map<String, List<Path>> categorizedFiles;
 
     public FileDiscoveryResult(
@@ -24,14 +29,17 @@ public class FileDiscoveryResult {
         Map<String, List<Path>> immutableFiles = new LinkedHashMap<>();
 
         categorizedFiles.forEach((fileType, paths) ->
-                immutableFiles.put(
-                        fileType,
-                        List.copyOf(paths)
-                )
+                immutableFiles.put(fileType, List.copyOf(paths))
         );
 
         this.categorizedFiles =
                 Collections.unmodifiableMap(immutableFiles);
+
+        this.fileCountsByType = new LinkedHashMap<>();
+
+        categorizedFiles.forEach((fileType, paths) ->
+                this.fileCountsByType.put(fileType, paths.size())
+        );
 
         this.totalFiles = categorizedFiles.values()
                 .stream()
@@ -39,14 +47,20 @@ public class FileDiscoveryResult {
                 .sum();
     }
 
-    public Path getRepositoryPath() {
-        return repositoryPath;
-    }
-
     public int getTotalFiles() {
         return totalFiles;
     }
 
+    public Map<String, Integer> getFileCountsByType() {
+        return fileCountsByType;
+    }
+
+    @JsonIgnore
+    public Path getRepositoryPath() {
+        return repositoryPath;
+    }
+
+    @JsonIgnore
     public Map<String, List<Path>> getCategorizedFiles() {
         return categorizedFiles;
     }

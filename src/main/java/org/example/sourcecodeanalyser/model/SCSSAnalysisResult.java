@@ -5,14 +5,10 @@ import java.util.List;
 
 public class SCSSAnalysisResult {
 
-    private String filePath;
+    private FileAnalysisMetadata fileMetadata;
 
-    private int totalRules;
     private List<SCSSRuleInfo> rules;
-
-    private int totalVariables;
     private List<String> variables;
-
     private List<String> mixins;
     private List<String> includes;
     private List<String> functions;
@@ -23,7 +19,7 @@ public class SCSSAnalysisResult {
     private List<String> placeholders;
 
     public SCSSAnalysisResult(
-            String filePath,
+            FileAnalysisMetadata fileMetadata,
             List<SCSSRuleInfo> rules,
             List<String> variables,
             List<String> mixins,
@@ -35,14 +31,9 @@ public class SCSSAnalysisResult {
             List<String> extendsRules,
             List<String> placeholders) {
 
-        this.filePath = filePath;
-
+        this.fileMetadata = fileMetadata;
         this.rules = rules;
-        this.totalRules = rules.size();
-
         this.variables = variables;
-        this.totalVariables = variables.size();
-
         this.mixins = mixins;
         this.includes = includes;
         this.functions = functions;
@@ -53,20 +44,12 @@ public class SCSSAnalysisResult {
         this.placeholders = placeholders;
     }
 
-    public String getFilePath() {
-        return filePath;
-    }
-
-    public int getTotalRules() {
-        return totalRules;
+    public FileAnalysisMetadata getFileMetadata() {
+        return fileMetadata;
     }
 
     public List<SCSSRuleInfo> getRules() {
         return rules;
-    }
-
-    public int getTotalVariables() {
-        return totalVariables;
     }
 
     public List<String> getVariables() {

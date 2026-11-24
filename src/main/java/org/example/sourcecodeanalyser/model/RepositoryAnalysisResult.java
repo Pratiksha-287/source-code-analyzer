@@ -5,6 +5,7 @@ import java.util.List;
 
 public class RepositoryAnalysisResult {
 
+    private String schemaVersion;
     private FileDiscoveryResult fileDiscovery;
     private JavaAnalysisResult javaAnalysis;
     private List<CSSAnalysisResult> cssAnalysis;
@@ -16,10 +17,15 @@ public class RepositoryAnalysisResult {
             List<CSSAnalysisResult> cssAnalysis,
             List<SCSSAnalysisResult> scssAnalysis) {
 
+        this.schemaVersion = "1.0";
         this.fileDiscovery = fileDiscovery;
         this.javaAnalysis = javaAnalysis;
         this.cssAnalysis = cssAnalysis;
         this.scssAnalysis = scssAnalysis;
+    }
+
+    public String getSchemaVersion() {
+        return schemaVersion;
     }
 
     public FileDiscoveryResult getFileDiscovery() {

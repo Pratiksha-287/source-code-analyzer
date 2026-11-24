@@ -1,8 +1,9 @@
-
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class SCSSRuleInfo {
 
     private String selector;
@@ -30,10 +31,12 @@ public class SCSSRuleInfo {
         return declarations;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getStartLine() {
         return startLine;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getEndLine() {
         return endLine;
     }

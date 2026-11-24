@@ -14,6 +14,7 @@ import com.helger.css.writer.CSSWriterSettings;
 
 import org.example.sourcecodeanalyser.model.CSSAnalysisResult;
 import org.example.sourcecodeanalyser.model.CSSRuleInfo;
+import org.example.sourcecodeanalyser.model.FileAnalysisMetadata;
 
 import org.springframework.stereotype.Component;
 
@@ -41,13 +42,19 @@ public class CSSSourceExtractor {
                     "(?:^|[;{])\\s*(--[\\w-]+)\\s*:\\s*([^;{}]+)"
             );
 
-    public CSSAnalysisResult extract(Path cssFile) throws IOException {
+    public CSSAnalysisResult extract(
+            Path cssFile,
+            Path repositoryRoot) throws IOException {
 
         if (cssFile == null || !Files.isRegularFile(cssFile)) {
             throw new IOException(
                     "CSS file does not exist or is not a regular file: "
                             + cssFile
             );
+        }
+
+        if (repositoryRoot == null) {
+            throw new IOException("Repository root cannot be null");
         }
 
         // 1. Read CSS source.
@@ -109,10 +116,34 @@ public class CSSSourceExtractor {
             );
         }
 
-        // 7. Return extracted CSS information.
+        // 7. Create file metadata.
+        Path normalizedFile =
+                cssFile.toAbsolutePath().normalize();
+
+        Path normalizedRoot =
+                repositoryRoot.toAbsolutePath().normalize();
+
+        if (!normalizedFile.startsWith(normalizedRoot)) {
+            throw new IOException(
+                    "CSS file is outside the repository: " + cssFile
+            );
+        }
+
+        String relativePath =
+                normalizedRoot.relativize(normalizedFile)
+                        .toString()
+                        .replace("\\", "/");
+
+        FileAnalysisMetadata metadata =
+                new FileAnalysisMetadata(
+                        cssFile.getFileName().toString(),
+                        relativePath,
+                        "CSS"
+                );
+
+        // 8. Return extracted CSS information.
         return new CSSAnalysisResult(
-                cssFile.toString(),
-                rules.size(),
+                metadata,
                 rules,
                 new ArrayList<>(imports),
                 new ArrayList<>(variables)

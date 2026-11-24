@@ -1,8 +1,9 @@
-
 package org.example.sourcecodeanalyser.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class JavaMethodInfo {
 
     private String methodName;
@@ -58,10 +59,12 @@ public class JavaMethodInfo {
         return modifiers;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getStartLine() {
         return startLine;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getEndLine() {
         return endLine;
     }

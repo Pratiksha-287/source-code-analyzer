@@ -1,8 +1,10 @@
 
 package org.example.sourcecodeanalyser.extractor;
 
+import org.example.sourcecodeanalyser.model.FileAnalysisMetadata;
 import org.example.sourcecodeanalyser.model.SCSSAnalysisResult;
 import org.example.sourcecodeanalyser.model.SCSSRuleInfo;
+
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -48,58 +50,115 @@ public class SCSSSourceExtractor {
     private static final Pattern PLACEHOLDER_PATTERN =
             Pattern.compile("%[\\w-]+");
 
-    public SCSSAnalysisResult extract(Path scssFile)
-            throws IOException {
+    public SCSSAnalysisResult extract(
+            Path scssFile,
+            Path repositoryRoot) throws IOException {
 
+        // 1. Validate SCSS file.
+        if (scssFile == null || !Files.isRegularFile(scssFile)) {
+            throw new IOException(
+                    "SCSS file does not exist or is not a regular file: "
+                            + scssFile
+            );
+        }
+
+        if (repositoryRoot == null) {
+            throw new IOException("Repository root cannot be null");
+        }
+
+        // 2. Read SCSS source.
         String source = Files.readString(
                 scssFile,
                 StandardCharsets.UTF_8
         );
 
+        // 3. Remove comments.
         String cleanSource = removeComments(source);
 
+        // 4. Extract SCSS rules.
         List<SCSSRuleInfo> rules = new ArrayList<>();
 
-        parseBlocks(cleanSource, 0, cleanSource.length(), null, rules);
+        parseBlocks(
+                cleanSource,
+                0,
+                cleanSource.length(),
+                null,
+                rules
+        );
 
+        // 5. Extract SCSS variables.
         Set<String> variables = extractMatches(
                 VARIABLE_PATTERN, cleanSource, 1
         );
 
+        // 6. Extract mixins.
         Set<String> mixins = extractMatches(
                 MIXIN_PATTERN, cleanSource, 0
         );
 
+        // 7. Extract includes.
         Set<String> includes = extractMatches(
                 INCLUDE_PATTERN, cleanSource, 0
         );
 
+        // 8. Extract functions.
         Set<String> functions = extractMatches(
                 FUNCTION_PATTERN, cleanSource, 0
         );
 
+        // 9. Extract imports.
         Set<String> imports = extractMatches(
                 IMPORT_PATTERN, cleanSource, 1
         );
 
+        // 10. Extract uses.
         Set<String> uses = extractMatches(
                 USE_PATTERN, cleanSource, 1
         );
 
+        // 11. Extract forwards.
         Set<String> forwards = extractMatches(
                 FORWARD_PATTERN, cleanSource, 1
         );
 
+        // 12. Extract extends.
         Set<String> extendsRules = extractMatches(
                 EXTEND_PATTERN, cleanSource, 1
         );
 
+        // 13. Extract placeholders.
         Set<String> placeholders = extractMatches(
                 PLACEHOLDER_PATTERN, cleanSource, 0
         );
 
+        // 14. Create file metadata.
+        Path normalizedFile =
+                scssFile.toAbsolutePath().normalize();
+
+        Path normalizedRoot =
+                repositoryRoot.toAbsolutePath().normalize();
+
+        if (!normalizedFile.startsWith(normalizedRoot)) {
+            throw new IOException(
+                    "SCSS file is outside the repository: " + scssFile
+            );
+        }
+
+        String relativePath =
+                normalizedRoot.relativize(normalizedFile)
+                        .toString()
+                        .replace("\\", "/");
+
+        FileAnalysisMetadata metadata =
+                new FileAnalysisMetadata(
+                        scssFile.getFileName().toString(),
+                        relativePath,
+                        "SCSS"
+                );
+
+        // 15. Return extracted SCSS information.
         return new SCSSAnalysisResult(
-                scssFile.toString(),
+                metadata,
                 rules,
                 new ArrayList<>(variables),
                 new ArrayList<>(mixins),

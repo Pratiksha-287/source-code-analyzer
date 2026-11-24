@@ -13,6 +13,8 @@ import org.example.sourcecodeanalyser.model.JavaFieldInfo;
 import org.example.sourcecodeanalyser.model.JavaImportInfo;
 import org.example.sourcecodeanalyser.model.JavaMethodInfo;
 import org.example.sourcecodeanalyser.model.JavaRelationshipInfo;
+import org.example.sourcecodeanalyser.model.FileAnalysisMetadata;
+import org.example.sourcecodeanalyser.model.SourceLocation;
 
 import org.springframework.stereotype.Component;
 
@@ -26,15 +28,14 @@ public class JavaClassAnalyzer {
 
     private final DependencyExtractor dependencyExtractor;
 
-    public JavaClassAnalyzer(
-            DependencyExtractor dependencyExtractor) {
-
+    public JavaClassAnalyzer(DependencyExtractor dependencyExtractor) {
         this.dependencyExtractor = dependencyExtractor;
     }
 
     public List<JavaClassInfo> analyze(
             CompilationUnit compilationUnit,
             Path javaFile,
+            FileAnalysisMetadata fileMetadata,
             Set<String> projectTypes) {
 
         List<JavaClassInfo> classInfos = new ArrayList<>();
@@ -44,7 +45,6 @@ public class JavaClassAnalyzer {
                         packageDeclaration.getNameAsString())
                 .orElse("");
 
-        // Extract import statements.
         List<JavaImportInfo> imports = new ArrayList<>();
 
         for (ImportDeclaration importDeclaration :
@@ -57,18 +57,15 @@ public class JavaClassAnalyzer {
             ));
         }
 
-        // Analyze each top-level type.
         for (TypeDeclaration<?> type : compilationUnit.getTypes()) {
 
             String classType = determineClassType(type);
 
-            // Extract class-level annotations.
             List<String> annotations = type.getAnnotations()
                     .stream()
                     .map(annotation -> annotation.getNameAsString())
                     .toList();
 
-            // Extract methods.
             List<JavaMethodInfo> methods = new ArrayList<>();
 
             for (MethodDeclaration method : type.getMethods()) {
@@ -115,7 +112,6 @@ public class JavaClassAnalyzer {
                 ));
             }
 
-            // Extract fields.
             List<JavaFieldInfo> fields = new ArrayList<>();
 
             for (FieldDeclaration field : type.getFields()) {
@@ -157,7 +153,6 @@ public class JavaClassAnalyzer {
                 });
             }
 
-            // Extract constructors.
             List<JavaConstructorInfo> constructors =
                     new ArrayList<>();
 
@@ -188,7 +183,8 @@ public class JavaClassAnalyzer {
                 List<String> constructorModifiers =
                         constructor.getModifiers()
                                 .stream()
-                                .map(modifier -> modifier.getKeyword().asString())
+                                .map(modifier ->
+                                        modifier.getKeyword().asString())
                                 .toList();
 
                 int constructorStartLine = constructor.getRange()
@@ -210,7 +206,6 @@ public class JavaClassAnalyzer {
                 ));
             }
 
-            // Extract inheritance and implemented interfaces.
             String extendedClass = null;
             List<String> implementedInterfaces = new ArrayList<>();
 
@@ -234,17 +229,14 @@ public class JavaClassAnalyzer {
                             implementedInterfaces
                     );
 
-            // Extract class access modifier.
             String classAccessModifier =
                     type.getAccessSpecifier().asString();
 
-            // Extract class modifiers.
             List<String> classModifiers = type.getModifiers()
                     .stream()
                     .map(modifier -> modifier.getKeyword().asString())
                     .toList();
 
-            // Extract source line numbers.
             int startLine = type.getRange()
                     .map(range -> range.begin.line)
                     .orElse(0);
@@ -253,23 +245,23 @@ public class JavaClassAnalyzer {
                     .map(range -> range.end.line)
                     .orElse(0);
 
-            // Extract Java dependencies using DependencyExtractor.
+            // Pass a repository-relative path to avoid absolute paths in JSON.
+            Path relativeSourceFile =
+                    Path.of(fileMetadata.getRelativePath());
+
             List<JavaDependencyInfo> dependencies =
                     dependencyExtractor.extract(
                             type,
                             compilationUnit.getImports(),
                             packageName,
                             projectTypes,
-                            javaFile
+                            relativeSourceFile
                     );
 
-            // Extract detailed annotation information.
             List<JavaAnnotationInfo> annotationDetails =
                     new ArrayList<>();
 
-            // Class-level annotations.
             type.getAnnotations().forEach(annotation -> {
-
                 annotationDetails.add(new JavaAnnotationInfo(
                         annotation.getNameAsString(),
                         "CLASS",
@@ -277,11 +269,8 @@ public class JavaClassAnalyzer {
                 ));
             });
 
-            // Method-level annotations.
             for (MethodDeclaration method : type.getMethods()) {
-
                 method.getAnnotations().forEach(annotation -> {
-
                     annotationDetails.add(new JavaAnnotationInfo(
                             annotation.getNameAsString(),
                             "METHOD",
@@ -290,13 +279,9 @@ public class JavaClassAnalyzer {
                 });
             }
 
-            // Field-level annotations.
             for (FieldDeclaration field : type.getFields()) {
-
                 field.getVariables().forEach(variable -> {
-
                     field.getAnnotations().forEach(annotation -> {
-
                         annotationDetails.add(new JavaAnnotationInfo(
                                 annotation.getNameAsString(),
                                 "FIELD",
@@ -306,7 +291,6 @@ public class JavaClassAnalyzer {
                 });
             }
 
-            // Constructor-level annotations.
             for (ConstructorDeclaration constructor :
                     type.getMembers().stream()
                             .filter(ConstructorDeclaration.class::isInstance)
@@ -314,7 +298,6 @@ public class JavaClassAnalyzer {
                             .toList()) {
 
                 constructor.getAnnotations().forEach(annotation -> {
-
                     annotationDetails.add(new JavaAnnotationInfo(
                             annotation.getNameAsString(),
                             "CONSTRUCTOR",
@@ -323,13 +306,15 @@ public class JavaClassAnalyzer {
                 });
             }
 
-            // Create class information.
+            SourceLocation sourceLocation =
+                    new SourceLocation(startLine, endLine);
+
             JavaClassInfo classInfo = new JavaClassInfo(
                     packageName,
                     type.getNameAsString(),
                     classType,
                     annotations,
-                    javaFile.toString(),
+                    fileMetadata,
                     methods,
                     fields,
                     constructors,
@@ -339,8 +324,7 @@ public class JavaClassAnalyzer {
                     imports,
                     dependencies,
                     annotationDetails,
-                    startLine,
-                    endLine
+                    sourceLocation
             );
 
             classInfos.add(classInfo);
@@ -349,7 +333,6 @@ public class JavaClassAnalyzer {
         return classInfos;
     }
 
-    // Identify the type of Java declaration.
     private String determineClassType(TypeDeclaration<?> type) {
 
         if (type instanceof ClassOrInterfaceDeclaration declaration) {

@@ -6,6 +6,7 @@ import com.github.javaparser.ast.body.TypeDeclaration;
 
 import org.example.sourcecodeanalyser.analyzer.JavaClassAnalyzer;
 import org.example.sourcecodeanalyser.extractor.JavaSourceExtractor;
+import org.example.sourcecodeanalyser.model.FileAnalysisMetadata;
 import org.example.sourcecodeanalyser.model.JavaAnalysisResult;
 import org.example.sourcecodeanalyser.model.JavaClassInfo;
 
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,15 +41,18 @@ public class JavaAnalysisService {
     }
 
     public JavaAnalysisResult analyzeJavaFiles(
-            List<Path> javaFiles) {
+            List<Path> javaFiles,
+            Path repositoryRoot) {
 
         List<JavaClassInfo> allClassInfos = new ArrayList<>();
 
-        // Store successfully parsed Java files.
-        Map<Path, CompilationUnit> parsedFiles = new HashMap<>();
+        Map<Path, CompilationUnit> parsedFiles =
+                new LinkedHashMap<>();
 
-        // Store fully qualified names of project classes.
         Set<String> projectTypes = new HashSet<>();
+
+        Path normalizedRoot =
+                repositoryRoot.toAbsolutePath().normalize();
 
         // PASS 1: Parse files and collect project class names.
         for (Path javaFile : javaFiles) {
@@ -87,10 +91,9 @@ public class JavaAnalysisService {
             }
         }
 
-        // Count files successfully analyzed in Pass 2.
         int successfullyAnalyzedFiles = 0;
 
-        // PASS 2: Analyze only successfully parsed files.
+        // PASS 2: Analyze successfully parsed files.
         for (Map.Entry<Path, CompilationUnit> entry :
                 parsedFiles.entrySet()) {
 
@@ -98,16 +101,32 @@ public class JavaAnalysisService {
             CompilationUnit compilationUnit = entry.getValue();
 
             try {
+
+                Path normalizedFile =
+                        javaFile.toAbsolutePath().normalize();
+
+                String relativePath = normalizedRoot
+                        .relativize(normalizedFile)
+                        .toString()
+                        .replace('\\', '/');
+
+                FileAnalysisMetadata fileMetadata =
+                        new FileAnalysisMetadata(
+                                normalizedFile.getFileName().toString(),
+                                relativePath,
+                                "JAVA"
+                        );
+
                 List<JavaClassInfo> classInfos =
                         javaClassAnalyzer.analyze(
                                 compilationUnit,
                                 javaFile,
+                                fileMetadata,
                                 projectTypes
                         );
 
                 allClassInfos.addAll(classInfos);
 
-                // Increment only after successful analysis.
                 successfullyAnalyzedFiles++;
 
             } catch (Exception e) {
@@ -120,7 +139,6 @@ public class JavaAnalysisService {
             }
         }
 
-        // Create the final Java analysis result.
         return new JavaAnalysisResult(
                 successfullyAnalyzedFiles,
                 allClassInfos

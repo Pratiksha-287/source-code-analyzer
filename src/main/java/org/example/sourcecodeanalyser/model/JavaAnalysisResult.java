@@ -15,7 +15,6 @@ public class JavaAnalysisResult {
 
         this.totalJavaFiles = totalJavaFiles;
         this.classes = classes;
-
         this.totalClasses = classes.size();
     }
 

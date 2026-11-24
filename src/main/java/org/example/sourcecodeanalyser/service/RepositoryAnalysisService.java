@@ -1,4 +1,3 @@
-
 package org.example.sourcecodeanalyser.service;
 
 import org.example.sourcecodeanalyser.extractor.CSSSourceExtractor;
@@ -57,7 +56,10 @@ public class RepositoryAnalysisService {
                         .getOrDefault("JAVA", List.of());
 
         JavaAnalysisResult javaAnalysis =
-                javaAnalysisService.analyzeJavaFiles(javaFiles);
+                javaAnalysisService.analyzeJavaFiles(
+                        javaFiles,
+                        fileDiscovery.getRepositoryPath()
+                );
 
         // 3. Analyze CSS files independently.
         List<Path> cssFiles =
@@ -67,16 +69,16 @@ public class RepositoryAnalysisService {
         List<CSSAnalysisResult> cssAnalysis = new ArrayList<>();
 
         for (Path cssFile : cssFiles) {
-
             try {
-
                 CSSAnalysisResult result =
-                        cssSourceExtractor.extract(cssFile);
+                        cssSourceExtractor.extract(
+                                cssFile,
+                                fileDiscovery.getRepositoryPath()
+                        );
 
                 cssAnalysis.add(result);
 
             } catch (Exception exception) {
-
                 log.warn(
                         "Skipping CSS file {} because extraction failed: {}",
                         cssFile,
@@ -105,14 +107,15 @@ public class RepositoryAnalysisService {
             }
 
             try {
-
                 SCSSAnalysisResult result =
-                        scssSourceExtractor.extract(stylesheetFile);
+                        scssSourceExtractor.extract(
+                                stylesheetFile,
+                                fileDiscovery.getRepositoryPath()
+                        );
 
                 scssAnalysis.add(result);
 
             } catch (Exception exception) {
-
                 log.warn(
                         "Skipping SCSS file {} because extraction failed: {}",
                         stylesheetFile,
