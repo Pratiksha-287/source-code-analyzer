@@ -77,15 +77,10 @@ public class JavaClassAnalyzer {
                                         + " " + parameter.getNameAsString())
                         .toList();
 
-                List<String> methodAnnotations =
-                        method.getAnnotations()
-                                .stream()
-                                .map(annotation ->
-                                        annotation.getNameAsString())
-                                .toList();
-
-                String methodAccessModifier =
-                        method.getAccessSpecifier().asString();
+                List<String> methodAnnotations = method.getAnnotations()
+                        .stream()
+                        .map(annotation -> annotation.getNameAsString())
+                        .toList();
 
                 List<String> methodModifiers = method.getModifiers()
                         .stream()
@@ -105,7 +100,6 @@ public class JavaClassAnalyzer {
                         method.getTypeAsString(),
                         parameters,
                         methodAnnotations,
-                        methodAccessModifier,
                         methodModifiers,
                         methodStartLine,
                         methodEndLine
@@ -116,15 +110,10 @@ public class JavaClassAnalyzer {
 
             for (FieldDeclaration field : type.getFields()) {
 
-                String accessModifier =
-                        field.getAccessSpecifier().asString();
-
-                List<String> fieldAnnotations =
-                        field.getAnnotations()
-                                .stream()
-                                .map(annotation ->
-                                        annotation.getNameAsString())
-                                .toList();
+                List<String> fieldAnnotations = field.getAnnotations()
+                        .stream()
+                        .map(annotation -> annotation.getNameAsString())
+                        .toList();
 
                 List<String> fieldModifiers = field.getModifiers()
                         .stream()
@@ -144,7 +133,6 @@ public class JavaClassAnalyzer {
                     fields.add(new JavaFieldInfo(
                             variable.getNameAsString(),
                             variable.getTypeAsString(),
-                            accessModifier,
                             fieldAnnotations,
                             fieldModifiers,
                             fieldStartLine,
@@ -153,8 +141,7 @@ public class JavaClassAnalyzer {
                 });
             }
 
-            List<JavaConstructorInfo> constructors =
-                    new ArrayList<>();
+            List<JavaConstructorInfo> constructors = new ArrayList<>();
 
             for (ConstructorDeclaration constructor :
                     type.getMembers().stream()
@@ -173,12 +160,8 @@ public class JavaClassAnalyzer {
                 List<String> constructorAnnotations =
                         constructor.getAnnotations()
                                 .stream()
-                                .map(annotation ->
-                                        annotation.getNameAsString())
+                                .map(annotation -> annotation.getNameAsString())
                                 .toList();
-
-                String accessModifier =
-                        constructor.getAccessSpecifier().asString();
 
                 List<String> constructorModifiers =
                         constructor.getModifiers()
@@ -199,7 +182,6 @@ public class JavaClassAnalyzer {
                         constructor.getNameAsString(),
                         constructorParameters,
                         constructorAnnotations,
-                        accessModifier,
                         constructorModifiers,
                         constructorStartLine,
                         constructorEndLine
@@ -219,7 +201,8 @@ public class JavaClassAnalyzer {
 
                 implementedInterfaces = declaration.getImplementedTypes()
                         .stream()
-                        .map(interfaceType -> interfaceType.getNameAsString())
+                        .map(interfaceType ->
+                                interfaceType.getNameAsString())
                         .toList();
             }
 
@@ -228,9 +211,6 @@ public class JavaClassAnalyzer {
                             extendedClass,
                             implementedInterfaces
                     );
-
-            String classAccessModifier =
-                    type.getAccessSpecifier().asString();
 
             List<String> classModifiers = type.getModifiers()
                     .stream()
@@ -245,7 +225,6 @@ public class JavaClassAnalyzer {
                     .map(range -> range.end.line)
                     .orElse(0);
 
-            // Pass a repository-relative path to avoid absolute paths in JSON.
             Path relativeSourceFile =
                     Path.of(fileMetadata.getRelativePath());
 
@@ -319,7 +298,6 @@ public class JavaClassAnalyzer {
                     fields,
                     constructors,
                     relationships,
-                    classAccessModifier,
                     classModifiers,
                     imports,
                     dependencies,

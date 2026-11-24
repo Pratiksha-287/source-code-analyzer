@@ -1,14 +1,12 @@
+
 package org.example.sourcecodeanalyser.model;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class JavaFieldInfo {
 
     private String fieldName;
     private String fieldType;
-    private String accessModifier;
     private List<String> annotations;
     private List<String> modifiers;
     private int startLine;
@@ -17,7 +15,6 @@ public class JavaFieldInfo {
     public JavaFieldInfo(
             String fieldName,
             String fieldType,
-            String accessModifier,
             List<String> annotations,
             List<String> modifiers,
             int startLine,
@@ -25,7 +22,6 @@ public class JavaFieldInfo {
 
         this.fieldName = fieldName;
         this.fieldType = fieldType;
-        this.accessModifier = accessModifier;
         this.annotations = annotations;
         this.modifiers = modifiers;
         this.startLine = startLine;
@@ -40,10 +36,6 @@ public class JavaFieldInfo {
         return fieldType;
     }
 
-    public String getAccessModifier() {
-        return accessModifier;
-    }
-
     public List<String> getAnnotations() {
         return annotations;
     }
@@ -52,12 +44,10 @@ public class JavaFieldInfo {
         return modifiers;
     }
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getStartLine() {
         return startLine;
     }
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     public int getEndLine() {
         return endLine;
     }
